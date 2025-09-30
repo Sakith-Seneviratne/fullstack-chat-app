@@ -10,7 +10,16 @@ const messageSchema = new mongoose.Schema(
     receiverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: function() {
+        return !this.groupId;
+      },
+    },
+    groupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Group",
+      required: function() {
+        return !this.receiverId;
+      },
     },
     text: {
       type: String,
@@ -21,6 +30,15 @@ const messageSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Ensure either receiverId or groupId is present, but not both
+messageSchema.pre('save', function(next) {
+  if ((this.receiverId && this.groupId) || (!this.receiverId && !this.groupId)) {
+    next(new Error('Message must have either receiverId or groupId, but not both'));
+  } else {
+    next();
+  }
+});
 
 const Message = mongoose.model("Message", messageSchema);
 

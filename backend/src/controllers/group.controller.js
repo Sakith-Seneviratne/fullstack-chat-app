@@ -1,0 +1,279 @@
+
+import Group from "../models/group.model.js";
+import Message from "../models/message.model.js";
+import cloudinary from "../lib/cloudinary.js";
+import { io } from "../lib/socket.js";
+
+export const createGroup = async (req, res) => {
+  try {
+    const { name, description, members, groupPic } = req.body;
+    const adminId = req.user._id;
+
+    if (!name) {
+      return res.status(400).json({ message: "Group name is required" });
+    }
+
+    if (!members || members.length === 0) {
+      return res.status(400).json({ message: "At least one member is required" });
+    }
+
+    // Ensure admin is included in members
+    const memberIds = [...new Set([adminId.toString(), ...members])];
+
+    let groupPicUrl = "";
+    if (groupPic) {
+      const uploadResponse = await cloudinary.uploader.upload(groupPic);
+      groupPicUrl = uploadResponse.secure_url;
+    }
+
+    const newGroup = new Group({
+      name,
+      description,
+      groupPic: groupPicUrl,
+      admin: adminId,
+      members: memberIds,
+    });
+
+    await newGroup.save();
+
+    const populatedGroup = await Group.findById(newGroup._id)
+      .populate("admin", "-password")
+      .populate("members", "-password");
+
+    res.status(201).json(populatedGroup);
+  } catch (error) {
+    console.log("Error in createGroup controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getUserGroups = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const groups = await Group.find({ members: userId })
+      .populate("admin", "-password")
+      .populate("members", "-password")
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json(groups);
+  } catch (error) {
+    console.log("Error in getUserGroups controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getGroupMessages = async (req, res) => {
+  try {
+    const { id: groupId } = req.params;
+    const userId = req.user._id;
+
+    // Check if user is a member of the group
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    if (!group.members.includes(userId)) {
+      return res.status(403).json({ message: "You are not a member of this group" });
+    }
+
+    const messages = await Message.find({ groupId })
+      .populate("senderId", "-password")
+      .sort({ createdAt: 1 });
+
+    res.status(200).json(messages);
+  } catch (error) {
+    console.log("Error in getGroupMessages controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const sendGroupMessage = async (req, res) => {
+  try {
+    const { text, image } = req.body;
+    const { id: groupId } = req.params;
+    const senderId = req.user._id;
+
+    // Check if user is a member of the group
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    if (!group.members.includes(senderId)) {
+      return res.status(403).json({ message: "You are not a member of this group" });
+    }
+
+    let imageUrl;
+    if (image) {
+      const uploadResponse = await cloudinary.uploader.upload(image);
+      imageUrl = uploadResponse.secure_url;
+    }
+
+    const newMessage = new Message({
+      senderId,
+      groupId,
+      text,
+      image: imageUrl,
+    });
+
+    await newMessage.save();
+
+    const populatedMessage = await Message.findById(newMessage._id).populate(
+      "senderId",
+      "-password"
+    );
+
+    // Emit to all group members
+    group.members.forEach((memberId) => {
+      io.to(memberId.toString()).emit("newGroupMessage", {
+        groupId,
+        message: populatedMessage,
+      });
+    });
+
+    res.status(201).json(populatedMessage);
+  } catch (error) {
+    console.log("Error in sendGroupMessage controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const addGroupMembers = async (req, res) => {
+  try {
+    const { id: groupId } = req.params;
+    const { members } = req.body;
+    const userId = req.user._id;
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Only admin can add members
+    if (group.admin.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Only admin can add members" });
+    }
+
+    // Add new members
+    const newMembers = members.filter(
+      (memberId) => !group.members.includes(memberId)
+    );
+    group.members.push(...newMembers);
+
+    await group.save();
+
+    const updatedGroup = await Group.findById(groupId)
+      .populate("admin", "-password")
+      .populate("members", "-password");
+
+    res.status(200).json(updatedGroup);
+  } catch (error) {
+    console.log("Error in addGroupMembers controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const removeGroupMember = async (req, res) => {
+  try {
+    const { id: groupId } = req.params;
+    const { memberId } = req.body;
+    const userId = req.user._id;
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Only admin can remove members or user can leave themselves
+    if (
+      group.admin.toString() !== userId.toString() &&
+      memberId !== userId.toString()
+    ) {
+      return res.status(403).json({ message: "Unauthorized action" });
+    }
+
+    // Can't remove admin
+    if (memberId === group.admin.toString()) {
+      return res.status(400).json({ message: "Cannot remove group admin" });
+    }
+
+    group.members = group.members.filter(
+      (member) => member.toString() !== memberId
+    );
+
+    await group.save();
+
+    const updatedGroup = await Group.findById(groupId)
+      .populate("admin", "-password")
+      .populate("members", "-password");
+
+    res.status(200).json(updatedGroup);
+  } catch (error) {
+    console.log("Error in removeGroupMember controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateGroup = async (req, res) => {
+  try {
+    const { id: groupId } = req.params;
+    const { name, description, groupPic } = req.body;
+    const userId = req.user._id;
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Only admin can update group
+    if (group.admin.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Only admin can update group" });
+    }
+
+    if (name) group.name = name;
+    if (description !== undefined) group.description = description;
+
+    if (groupPic) {
+      const uploadResponse = await cloudinary.uploader.upload(groupPic);
+      group.groupPic = uploadResponse.secure_url;
+    }
+
+    await group.save();
+
+    const updatedGroup = await Group.findById(groupId)
+      .populate("admin", "-password")
+      .populate("members", "-password");
+
+    res.status(200).json(updatedGroup);
+  } catch (error) {
+    console.log("Error in updateGroup controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteGroup = async (req, res) => {
+  try {
+    const { id: groupId } = req.params;
+    const userId = req.user._id;
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Only admin can delete group
+    if (group.admin.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Only admin can delete group" });
+    }
+
+    await Group.findByIdAndDelete(groupId);
+    await Message.deleteMany({ groupId });
+
+    res.status(200).json({ message: "Group deleted successfully" });
+  } catch (error) {
+    console.log("Error in deleteGroup controller:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

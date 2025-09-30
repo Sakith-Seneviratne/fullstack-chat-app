@@ -7,7 +7,7 @@ const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const fileInputRef = useRef(null);
-  const { sendMessage } = useChatStore();
+  const { sendMessage, sendGroupMessage, selectedUser, selectedGroup } = useChatStore();
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -33,10 +33,17 @@ const MessageInput = () => {
     if (!text.trim() && !imagePreview) return;
 
     try {
-      await sendMessage({
-        text: text.trim(),
-        image: imagePreview,
-      });
+      if (selectedUser) {
+        await sendMessage({
+          text: text.trim(),
+          image: imagePreview,
+        });
+      } else if (selectedGroup) {
+        await sendGroupMessage({
+          text: text.trim(),
+          image: imagePreview,
+        });
+      }
 
       // Clear form
       setText("");
@@ -73,7 +80,7 @@ const MessageInput = () => {
         <div className="flex-1 flex gap-2">
           <input
             type="text"
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
+            className="input input-bordered rounded-lg input-sm sm:input-md flex-1"
             placeholder="Type a message..."
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -106,4 +113,5 @@ const MessageInput = () => {
     </div>
   );
 };
+
 export default MessageInput;
