@@ -55,22 +55,21 @@ const MessageInput = () => {
   };
 
   return (
-    <div className="p-4 w-full">
+    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4">
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
           <div className="relative">
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
+              className="w-20 h-20 object-cover rounded-lg border border-neutral-300 dark:border-neutral-600"
             />
             <button
               onClick={removeImage}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-base-300
-              flex items-center justify-center"
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-neutral-900 dark:bg-neutral-100 hover:bg-neutral-800 dark:hover:bg-neutral-200 flex items-center justify-center transition-colors shadow-md"
               type="button"
             >
-              <X className="size-3" />
+              <X className="w-3.5 h-3.5 text-white dark:text-neutral-900" />
             </button>
           </div>
         </div>
@@ -80,7 +79,7 @@ const MessageInput = () => {
         <div className="flex-1 flex gap-2">
           <input
             type="text"
-            className="input input-bordered rounded-lg input-sm sm:input-md flex-1"
+            className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm transition-all"
             placeholder="Type a message..."
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -95,19 +94,26 @@ const MessageInput = () => {
 
           <button
             type="button"
-            className={`hidden sm:flex btn btn-circle
-                     ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
+            className={`hidden sm:flex w-10 h-10 rounded-lg items-center justify-center transition-all ${
+              imagePreview
+                ? "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
+                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+            }`}
             onClick={() => fileInputRef.current?.click()}
           >
-            <Image size={20} />
+            <Image className="w-5 h-5" />
           </button>
         </div>
         <button
           type="submit"
-          className="btn btn-sm btn-circle"
+          className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
+            !text.trim() && !imagePreview
+              ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
+          }`}
           disabled={!text.trim() && !imagePreview}
         >
-          <Send size={22} />
+          <Send className="w-5 h-5" />
         </button>
       </form>
     </div>

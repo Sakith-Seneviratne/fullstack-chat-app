@@ -6,46 +6,45 @@ const Navbar = () => {
   const { logout, authUser } = useAuthStore();
 
   return (
-    <header
-      className="bg-base-100 border-b border-base-300 fixed w-full top-0 z-40 
-    backdrop-blur-lg bg-base-100/80"
-    >
+    <header className="bg-white/80 dark:bg-neutral-900/80 border-b border-neutral-200 dark:border-neutral-700 fixed w-full top-0 z-40 backdrop-blur-lg">
       <div className="container mx-auto px-4 h-16">
         <div className="flex items-center justify-between h-full">
           <div className="flex items-center gap-8">
-            <Link to="/" className="flex items-center gap-2.5 hover:opacity-80 transition-all">
-              <div className=" flex items-center justify-center">
+            <Link 
+              to="/" 
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+            >
+              <div className="flex items-center justify-center">
                 <img 
                   src="/TezzeractLogo.svg" 
                   alt="Tezzeract Logo" 
                   className="w-6 h-6"
                 />
               </div>
-              <h1 className="text-lg font-bold">Tez Chat</h1>
+              <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
+                Tez Chat
+              </h1>
             </Link>
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              to={"/settings"}
-              className={`
-              btn btn-sm gap-2 transition-colors
-              
-              `}
-            >
-              <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Settings</span>
-            </Link>
+            
 
             {authUser && (
               <>
-                <Link to={"/profile"} className={`btn btn-sm gap-2`}>
-                  <User className="size-5" />
+                <Link 
+                  to="/profile" 
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  <User className="w-4 h-4" />
                   <span className="hidden sm:inline">Profile</span>
                 </Link>
 
-                <button className="flex gap-2 items-center" onClick={logout}>
-                  <LogOut className="size-5" />
+                <button 
+                  onClick={logout}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
                   <span className="hidden sm:inline">Logout</span>
                 </button>
               </>
