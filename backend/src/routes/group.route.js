@@ -9,6 +9,8 @@ import {
   removeGroupMember,
   updateGroup,
   deleteGroup,
+  getGroupUnreadCount, 
+
 } from "../controllers/group.controller.js";
 
 const router = express.Router();
@@ -21,5 +23,7 @@ router.put("/:id/add-members", protectRoute, addGroupMembers);
 router.put("/:id/remove-member", protectRoute, removeGroupMember);
 router.put("/:id", protectRoute, updateGroup);
 router.delete("/:id", protectRoute, deleteGroup);
+router.get("/:groupId/unread", protectRoute, getGroupUnreadCount);
+
 
 export default router;

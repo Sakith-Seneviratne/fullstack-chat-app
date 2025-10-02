@@ -6,6 +6,7 @@ import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
+import { Check, CheckCheck } from "lucide-react";
 
 const ChatContainer = () => {
   const {
@@ -18,9 +19,11 @@ const ChatContainer = () => {
     subscribeToMessages,
     subscribeToGroupMessages,
     unsubscribeFromMessages,
+    markMessagesAsRead,
   } = useChatStore();
-  const { authUser } = useAuthStore();
+  const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   useEffect(() => {
     if (selectedUser) {
@@ -48,6 +51,57 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
+  // Mark messages as read when component mounts or messages change
+  useEffect(() => {
+    if (!messages.length || !authUser) return;
+
+    // Find unread messages not sent by current user
+    const unreadMessages = messages.filter((msg) => {
+      const senderId = msg.senderId._id || msg.senderId;
+      const isOwnMessage = senderId === authUser._id;
+      const isRead = msg.readBy?.some((r) => r.user === authUser._id);
+      return !isOwnMessage && !isRead;
+    });
+
+    if (unreadMessages.length > 0) {
+      const messageIds = unreadMessages.map((msg) => msg._id);
+      
+      // Mark as read locally and on server
+      markMessagesAsRead(messageIds);
+
+      // Emit socket event for real-time updates
+      if (socket) {
+        const chatId = selectedUser?._id || selectedGroup?._id;
+        socket.emit("messages:read", {
+          messageIds,
+          chatId,
+          isGroup: !!selectedGroup,
+        });
+      }
+    }
+  }, [messages, authUser, socket, selectedUser, selectedGroup, markMessagesAsRead]);
+
+  // Helper function to check if message is read
+  const getReadStatus = (message) => {
+    const senderId = message.senderId._id || message.senderId;
+    const isOwnMessage = senderId === authUser._id;
+
+    if (!isOwnMessage) return null;
+
+    if (!message.readBy || message.readBy.length === 0) {
+      return { status: "sent", icon: Check };
+    }
+
+    // Check if read by anyone other than sender
+    const readByOthers = message.readBy.filter((r) => r.user !== authUser._id);
+    
+    if (readByOthers.length > 0) {
+      return { status: "read", icon: CheckCheck, isRead: true };
+    }
+
+    return { status: "delivered", icon: CheckCheck, isRead: false };
+  };
+
   if (isMessagesLoading) {
     return (
       <div className="flex-1 flex flex-col overflow-auto">
@@ -62,11 +116,14 @@ const ChatContainer = () => {
     <div className="bg-white dark:bg-neutral-900 flex-1 flex flex-col overflow-auto">
       <ChatHeader />
 
-      <div className=" flex-1 overflow-y-auto p-4 space-y-4">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+      >
         {messages.map((message) => {
-          const isOwnMessage = message.senderId._id
-            ? message.senderId._id === authUser._id
-            : message.senderId === authUser._id;
+          const senderId = message.senderId._id || message.senderId;
+          const isOwnMessage = senderId === authUser._id;
+          const readStatus = getReadStatus(message);
 
           return (
             <div
@@ -108,6 +165,21 @@ const ChatContainer = () => {
                 )}
                 {message.text && <p>{message.text}</p>}
               </div>
+              
+              {/* Read Receipt Indicator */}
+              {readStatus && (
+                <div className="chat-footer opacity-50 flex items-center gap-1 mt-1">
+                  <readStatus.icon
+                    size={14}
+                    className={readStatus.isRead ? "text-blue-500" : ""}
+                  />
+                  {selectedGroup && message.readBy && message.readBy.length > 1 && (
+                    <span className="text-xs">
+                      {message.readBy.length - 1}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

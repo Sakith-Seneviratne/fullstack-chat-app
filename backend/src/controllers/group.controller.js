@@ -277,3 +277,21 @@ export const deleteGroup = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const getGroupUnreadCount = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user._id;
+
+    const count = await Message.countDocuments({
+      group: groupId,
+      senderId: { $ne: userId },
+      "readBy.user": { $ne: userId },
+    });
+
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error("Error in getGroupUnreadCount:", error.message);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

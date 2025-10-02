@@ -1,6 +1,7 @@
 import { Server } from "socket.io";
 import http from "http";
 import express from "express";
+import Message from "../models/message.model.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -55,6 +56,83 @@ io.on("connection", (socket) => {
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
   });
+
+  // When user reads messages
+socket.on("messages:read", async ({ messageIds, chatId, isGroup }) => {
+  try {
+    const userId = socket.userId; // Assuming you set this during socket authentication
+
+    // Update messages in database
+    await Message.updateMany(
+      {
+        _id: { $in: messageIds },
+        senderId: { $ne: userId }, // Don't mark own messages
+      },
+      {
+        $addToSet: {
+          readBy: { user: userId, readAt: new Date() },
+        },
+        isRead: true,
+      }
+    );
+
+    // Emit to other users in the chat/group
+    if (isGroup) {
+      // For groups, broadcast to all group members
+      socket.to(chatId).emit("messages:read:update", {
+        messageIds,
+        readBy: userId,
+        readAt: new Date(),
+        chatId,
+      });
+    } else {
+      // For 1-on-1, send to the specific user
+      const recipientSocketId = getRecipientSocketId(chatId); // You need this helper
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("messages:read:update", {
+          messageIds,
+          readBy: userId,
+          readAt: new Date(),
+          chatId,
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error marking messages as read:", error);
+  }
+});
+
+// Handle chat opened event (automatically mark visible messages as read)
+socket.on("chat:opened", async ({ chatId, isGroup }) => {
+  try {
+    const userId = socket.userId;
+
+    // Find recent unread messages
+    const query = isGroup
+      ? { group: chatId, senderId: { $ne: userId }, "readBy.user": { $ne: userId } }
+      : {
+          $or: [
+            { senderId: chatId, receiverId: userId },
+            { senderId: userId, receiverId: chatId },
+          ],
+          senderId: { $ne: userId },
+          "readBy.user": { $ne: userId },
+        };
+
+    const messages = await Message.find(query)
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    if (messages.length > 0) {
+      const messageIds = messages.map((m) => m._id.toString());
+      
+      // Trigger the read event
+      socket.emit("messages:read", { messageIds, chatId, isGroup });
+    }
+  } catch (error) {
+    console.error("Error in chat:opened:", error);
+  }
+});
 });
 
 export { io, app, server };

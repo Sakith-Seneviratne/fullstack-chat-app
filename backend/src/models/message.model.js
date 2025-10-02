@@ -27,6 +27,22 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
+
+    readBy: [{
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  readAt: {
+    type: Date,
+    default: Date.now
+  }
+}],
+isRead: {
+  type: Boolean,
+  default: false
+}
+
   },
   { timestamps: true }
 );
