@@ -6,7 +6,7 @@ import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
-import { Check, CheckCheck } from "lucide-react";
+import { Check, CheckCheck, File, Download } from "lucide-react";
 
 const ChatContainer = () => {
   const {
@@ -102,6 +102,15 @@ const ChatContainer = () => {
     return { status: "delivered", icon: CheckCheck, isRead: false };
   };
 
+  // Helper function to format file size
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
+  };
+
   if (isMessagesLoading) {
     return (
       <div className="flex-1 flex flex-col overflow-auto">
@@ -156,6 +165,7 @@ const ChatContainer = () => {
                 </time>
               </div>
               <div className="chat-bubble flex flex-col">
+                {/* Image Attachment */}
                 {message.image && (
                   <img
                     src={message.image}
@@ -163,6 +173,32 @@ const ChatContainer = () => {
                     className="sm:max-w-[200px] rounded-md mb-2"
                   />
                 )}
+
+                {/* File Attachment */}
+                {message.file && (
+                  <a
+                    href={message.file.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={message.file.name}
+                    className="flex items-center gap-3 p-3 bg-white dark:bg-neutral-800 rounded-lg mb-2 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition border border-neutral-200 dark:border-neutral-700"
+                  >
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg flex-shrink-0">
+                      <File size={24} className="text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate text-neutral-900 dark:text-neutral-100">
+                        {message.file.name}
+                      </p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                        {formatFileSize(message.file.size)}
+                      </p>
+                    </div>
+                    <Download size={20} className="text-neutral-500 flex-shrink-0" />
+                  </a>
+                )}
+
+                {/* Text Message */}
                 {message.text && <p>{message.text}</p>}
               </div>
               

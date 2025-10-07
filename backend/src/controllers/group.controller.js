@@ -1,8 +1,28 @@
-
 import Group from "../models/group.model.js";
 import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { io } from "../lib/socket.js";
+import path from "path";
+
+// Helper function to upload to Cloudinary
+const uploadToCloudinary = async (file, folder) => {
+  try {
+    const uploadResponse = await cloudinary.uploader.upload(file, {
+      resource_type: "auto",
+      folder: folder,
+    });
+
+    return {
+      url: uploadResponse.secure_url,
+      publicId: uploadResponse.public_id,
+      format: uploadResponse.format,
+      bytes: uploadResponse.bytes,
+    };
+  } catch (error) {
+    console.error("Cloudinary upload error:", error);
+    throw error;
+  }
+};
 
 export const createGroup = async (req, res) => {
   try {
@@ -91,7 +111,7 @@ export const getGroupMessages = async (req, res) => {
 
 export const sendGroupMessage = async (req, res) => {
   try {
-    const { text, image } = req.body;
+    const { text } = req.body;
     const { id: groupId } = req.params;
     const senderId = req.user._id;
 
@@ -106,9 +126,31 @@ export const sendGroupMessage = async (req, res) => {
     }
 
     let imageUrl;
-    if (image) {
-      const uploadResponse = await cloudinary.uploader.upload(image);
-      imageUrl = uploadResponse.secure_url;
+    let fileData;
+
+    // Handle image upload
+    if (req.body.image) {
+      const uploadResponse = await uploadToCloudinary(req.body.image, "group-images");
+      imageUrl = uploadResponse.url;
+    }
+
+    // Handle file upload
+    if (req.body.file) {
+      const uploadResponse = await uploadToCloudinary(req.body.file, "group-files");
+      
+      const fileName = req.body.fileName || "file";
+      const fileExtension = path.extname(fileName).slice(1) || uploadResponse.format;
+      const fileType = req.body.fileType || `application/${fileExtension}`;
+      const fileSize = uploadResponse.bytes;
+
+      fileData = {
+        url: uploadResponse.url,
+        publicId: uploadResponse.publicId,
+        name: fileName,
+        size: fileSize,
+        type: fileType,
+        extension: fileExtension,
+      };
     }
 
     const newMessage = new Message({
@@ -116,6 +158,7 @@ export const sendGroupMessage = async (req, res) => {
       groupId,
       text,
       image: imageUrl,
+      file: fileData,
     });
 
     await newMessage.save();
@@ -284,7 +327,7 @@ export const getGroupUnreadCount = async (req, res) => {
     const userId = req.user._id;
 
     const count = await Message.countDocuments({
-      group: groupId,
+      groupId,
       senderId: { $ne: userId },
       "readBy.user": { $ne: userId },
     });

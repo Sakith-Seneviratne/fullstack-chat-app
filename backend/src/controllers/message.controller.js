@@ -1,8 +1,28 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
-
+import path from "path"; // ADD THIS - Missing import
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
+
+// Helper function to upload to Cloudinary
+const uploadToCloudinary = async (file, folder) => {
+  try {
+    const uploadResponse = await cloudinary.uploader.upload(file, {
+      resource_type: "auto",
+      folder: folder,
+    });
+
+    return {
+      url: uploadResponse.secure_url,
+      publicId: uploadResponse.public_id,
+      format: uploadResponse.format,
+      bytes: uploadResponse.bytes,
+    };
+  } catch (error) {
+    console.error("Cloudinary upload error:", error);
+    throw error;
+  }
+};
 
 export const getUsersForSidebar = async (req, res) => {
   try {
@@ -26,7 +46,7 @@ export const getMessages = async (req, res) => {
         { senderId: myId, receiverId: userToChatId },
         { senderId: userToChatId, receiverId: myId },
       ],
-    });
+    }).populate("senderId", "fullName profilePic");
 
     res.status(200).json(messages);
   } catch (error) {
@@ -37,15 +57,36 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { text, image } = req.body;
+    const { text } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
     let imageUrl;
-    if (image) {
-      // Upload base64 image to cloudinary
-      const uploadResponse = await cloudinary.uploader.upload(image);
-      imageUrl = uploadResponse.secure_url;
+    let fileData;
+
+    // Handle image upload
+    if (req.body.image) {
+      const uploadResponse = await uploadToCloudinary(req.body.image, "chat-images");
+      imageUrl = uploadResponse.url;
+    }
+
+    // Handle file upload
+    if (req.body.file) {
+      const uploadResponse = await uploadToCloudinary(req.body.file, "chat-files");
+      
+      const fileName = req.body.fileName || "file";
+      const fileExtension = path.extname(fileName).slice(1) || uploadResponse.format;
+      const fileType = req.body.fileType || `application/${fileExtension}`;
+      const fileSize = uploadResponse.bytes;
+
+      fileData = {
+        url: uploadResponse.url,
+        publicId: uploadResponse.publicId,
+        name: fileName,
+        size: fileSize,
+        type: fileType,
+        extension: fileExtension,
+      };
     }
 
     const newMessage = new Message({
@@ -53,9 +94,13 @@ export const sendMessage = async (req, res) => {
       receiverId,
       text,
       image: imageUrl,
+      file: fileData,
     });
 
     await newMessage.save();
+
+    // Populate sender info before sending via socket
+    await newMessage.populate("senderId", "fullName profilePic");
 
     const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {
@@ -68,6 +113,7 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 export const markMessagesAsRead = async (req, res) => {
   try {
     const { messageIds } = req.body;
@@ -80,7 +126,7 @@ export const markMessagesAsRead = async (req, res) => {
     await Message.updateMany(
       {
         _id: { $in: messageIds },
-        senderId: { $ne: userId }, // Don't mark own messages as read
+        senderId: { $ne: userId },
       },
       {
         $addToSet: {
@@ -97,17 +143,14 @@ export const markMessagesAsRead = async (req, res) => {
   }
 };
 
-// Get unread message count for a specific chat
 export const getUnreadCount = async (req, res) => {
   try {
     const { userId } = req.params;
     const currentUserId = req.user._id;
 
     const count = await Message.countDocuments({
-      $or: [
-        { senderId: userId, receiverId: currentUserId },
-      ],
-      senderId: { $ne: currentUserId },
+      senderId: userId,
+      receiverId: currentUserId,
       "readBy.user": { $ne: currentUserId },
     });
 

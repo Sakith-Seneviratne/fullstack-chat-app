@@ -27,22 +27,24 @@ const messageSchema = new mongoose.Schema(
     image: {
       type: String,
     },
-
+    file: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     readBy: [{
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
-  },
-  readAt: {
-    type: Date,
-    default: Date.now
-  }
-}],
-isRead: {
-  type: Boolean,
-  default: false
-}
-
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      },
+      readAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    isRead: {
+      type: Boolean,
+      default: false
+    }
   },
   { timestamps: true }
 );
