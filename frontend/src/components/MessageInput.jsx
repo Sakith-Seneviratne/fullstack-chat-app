@@ -3,14 +3,14 @@ import { useChatStore } from "../store/useChatStore";
 import { Image, Send, X, Paperclip, File } from "lucide-react";
 import toast from "react-hot-toast";
 
-const MessageInput = () => {
+const MessageInput = ({ selectedChat }) => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const [filePreview, setFilePreview] = useState(null); // ADDED
   const imageInputRef = useRef(null); // RENAMED
   const fileInputRef = useRef(null); // ADDED
   
-  const { sendMessage, sendGroupMessage, selectedUser, selectedGroup } = useChatStore();
+  const { sendChatMessage } = useChatStore();
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -75,6 +75,7 @@ const MessageInput = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!text.trim() && !imagePreview && !filePreview) return;
+    if (!selectedChat) return;
 
     try {
       const messageData = {
@@ -87,11 +88,7 @@ const MessageInput = () => {
         }),
       };
 
-      if (selectedUser) {
-        await sendMessage(messageData);
-      } else if (selectedGroup) {
-        await sendGroupMessage(messageData);
-      }
+      await sendChatMessage(selectedChat._id, selectedChat.type === 'group', messageData);
 
       setText("");
       setImagePreview(null);
@@ -105,7 +102,7 @@ const MessageInput = () => {
   };
 
   return (
-    <div className="border-t border-neutral-200 dark:border-neutral-700 p-4">
+    <div className="border-t border-neutral-800 p-4">
       {/* Image Preview */}
       {imagePreview && (
         <div className="mb-3 flex items-center gap-2">
@@ -113,14 +110,14 @@ const MessageInput = () => {
             <img
               src={imagePreview}
               alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-neutral-300 dark:border-neutral-600"
+              className="w-20 h-20 object-cover rounded-lg border border-neutral-600"
             />
             <button
               onClick={removeImage}
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-neutral-900 dark:bg-neutral-100 hover:bg-neutral-800 dark:hover:bg-neutral-200 flex items-center justify-center transition-colors shadow-md"
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-neutral-800 hover:bg-neutral-700 flex items-center justify-center transition-colors shadow-md"
               type="button"
             >
-              <X className="w-3.5 h-3.5 text-white dark:text-neutral-900" />
+              <X className="w-3.5 h-3.5 text-neutral-100" />
             </button>
           </div>
         </div>
@@ -128,21 +125,21 @@ const MessageInput = () => {
 
       {/* File Preview */}
       {filePreview && (
-        <div className="mb-3 flex items-center gap-3 p-3 bg-neutral-100 dark:bg-neutral-800 rounded-lg border border-neutral-300 dark:border-neutral-600">
-          <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-            <File size={24} className="text-blue-600 dark:text-blue-400" />
+        <div className="mb-3 flex items-center gap-3 p-3 bg-neutral-800 rounded-lg border border-neutral-600">
+          <div className="p-2 bg-neutral-700 rounded-lg">
+            <File size={24} className="text-neutral-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate text-neutral-900 dark:text-neutral-100">
+            <p className="text-sm font-medium truncate text-neutral-100">
               {filePreview.name}
             </p>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            <p className="text-xs text-neutral-400">
               {formatFileSize(filePreview.size)}
             </p>
           </div>
           <button
             onClick={removeFile}
-            className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 flex items-center justify-center transition-colors"
+            className="w-6 h-6 rounded-full bg-neutral-700 hover:bg-neutral-600 flex items-center justify-center transition-colors"
             type="button"
           >
             <X className="w-3.5 h-3.5" />
@@ -154,7 +151,7 @@ const MessageInput = () => {
         <div className="flex-1 flex gap-2">
           <input
             type="text"
-            className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent text-sm transition-all"
+            className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-600 bg-neutral-900 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-600 focus:border-transparent text-sm transition-all"
             placeholder="Type a message..."
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -181,8 +178,8 @@ const MessageInput = () => {
             type="button"
             className={`hidden sm:flex w-10 h-10 rounded-lg items-center justify-center transition-all ${
               imagePreview
-                ? "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                ? "bg-green-900/20 text-green-400 hover:bg-green-900/30"
+                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
             }`}
             onClick={() => imageInputRef.current?.click()}
           >
@@ -194,8 +191,8 @@ const MessageInput = () => {
             type="button"
             className={`hidden sm:flex w-10 h-10 rounded-lg items-center justify-center transition-all ${
               filePreview
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                ? "bg-neutral-800/20 text-neutral-400 hover:bg-neutral-700/30"
+                : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700"
             }`}
             onClick={() => fileInputRef.current?.click()}
           >
@@ -208,8 +205,8 @@ const MessageInput = () => {
           type="submit"
           className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
             !text.trim() && !imagePreview && !filePreview
-              ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow-md"
+              ? "bg-neutral-800 text-neutral-500 cursor-not-allowed"
+              : "bg-neutral-600 hover:bg-neutral-700 text-neutral-100 shadow-sm hover:shadow-md"
           }`}
           disabled={!text.trim() && !imagePreview && !filePreview}
         >

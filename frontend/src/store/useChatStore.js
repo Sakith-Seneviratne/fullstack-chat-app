@@ -7,13 +7,12 @@ export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
   groups: [],
-  selectedUser: null,
-  selectedGroup: null,
+  selectedChat: null,
   isUsersLoading: false,
   isGroupsLoading: false,
   isMessagesLoading: false,
-  unreadCounts: {}, // { userId: count } or { groupId: count }
-  lastMessageTimes: {}, // { userId: timestamp } or { groupId: timestamp }
+  unreadCounts: {}, // { chatId: count }
+  lastMessageTimes: {}, // { chatId: timestamp }
   lastMessages: {}, // { chatId: { text, image, senderId } }
 
   getUsers: async () => {
@@ -133,7 +132,7 @@ export const useChatStore = create((set, get) => ({
     try {
       await axiosInstance.post("/messages/mark-read", { messageIds });
       
-      const { messages, selectedUser, selectedGroup, unreadCounts } = get();
+      const { messages, selectedChat, unreadCounts } = get();
       const authUserId = useAuthStore.getState().authUser._id;
       
       const updatedMessages = messages.map((msg) => {
@@ -255,7 +254,7 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.put(`/groups/${groupId}`, groupData);
       set({
         groups: get().groups.map((g) => (g._id === groupId ? res.data : g)),
-        selectedGroup: res.data,
+        selectedChat: get().selectedChat?._id === groupId ? { ...get().selectedChat, ...res.data } : get().selectedChat,
       });
       toast.success("Group updated successfully");
       return res.data;
@@ -270,7 +269,7 @@ export const useChatStore = create((set, get) => ({
       await axiosInstance.delete(`/groups/${groupId}`);
       set({
         groups: get().groups.filter((g) => g._id !== groupId),
-        selectedGroup: null,
+        selectedChat: get().selectedChat?._id === groupId ? null : get().selectedChat,
       });
       toast.success("Group deleted successfully");
     } catch (error) {
@@ -284,7 +283,7 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.put(`/groups/${groupId}/add-members`, { members });
       set({
         groups: get().groups.map((g) => (g._id === groupId ? res.data : g)),
-        selectedGroup: res.data,
+        selectedChat: get().selectedChat?._id === groupId ? { ...get().selectedChat, ...res.data } : get().selectedChat,
       });
       toast.success("Members added successfully");
       return res.data;
@@ -299,7 +298,7 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.put(`/groups/${groupId}/remove-member`, { memberId });
       set({
         groups: get().groups.map((g) => (g._id === groupId ? res.data : g)),
-        selectedGroup: res.data,
+        selectedChat: get().selectedChat?._id === groupId ? { ...get().selectedChat, ...res.data } : get().selectedChat,
       });
       toast.success("Member removed successfully");
       return res.data;
@@ -309,96 +308,116 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  subscribeToMessages: () => {
-    const { selectedUser } = get();
-    if (!selectedUser) return;
-  
+  getChatMessages: async (chatId, isGroup) => {
+    set({ isMessagesLoading: true });
+    try {
+      const endpoint = isGroup ? `/groups/${chatId}/messages` : `/messages/${chatId}`;
+      const res = await axiosInstance.get(endpoint);
+      
+      const populatedMessages = res.data.map(msg => {
+        if (typeof msg.senderId === 'string') {
+          const sender = get().users.find(user => user._id === msg.senderId);
+          return { 
+            ...msg, 
+            senderId: sender || { _id: msg.senderId, fullName: "Unknown User", profilePic: "/avatar.png" } 
+          };
+        }
+        return msg;
+      });
+      set({ messages: populatedMessages });
+
+      const authUserId = useAuthStore.getState().authUser._id;
+      const unreadMessageIds = populatedMessages
+        .filter(msg => {
+          const senderId = msg.senderId._id || msg.senderId;
+          return (isGroup ? senderId !== authUserId : senderId === chatId) &&
+                 !msg.readBy?.some(r => r.user === authUserId);
+        })
+        .map(msg => msg._id);
+
+      if (unreadMessageIds.length > 0) {
+        await get().markMessagesAsRead(unreadMessageIds, isGroup, chatId);
+      }
+    } catch (error) {
+      toast.error(error.response.data.message);
+    } finally {
+      set({ isMessagesLoading: false });
+    }
+  },
+
+  sendChatMessage: async (chatId, isGroup, messageData) => {
+    const { messages } = get();
+    try {
+      const endpoint = isGroup ? `/groups/${chatId}/send` : `/messages/send/${chatId}`;
+      const res = await axiosInstance.post(endpoint, messageData);
+      set({ messages: [...messages, res.data] });
+      
+      get().setLastMessageTime(chatId, Date.now());
+    } catch (error) {
+      toast.error(error.response.data.message);
+    }
+  },
+
+  subscribeToChatMessages: () => {
+    const { selectedChat } = get();
+    if (!selectedChat) return;
+
     const socket = useAuthStore.getState().socket;
     const authUserId = useAuthStore.getState().authUser._id;
-  
-    socket.on("newMessage", (newMessage) => {
+
+    const handleNewMessage = (newMessage) => {
       const senderId = newMessage.senderId?._id || newMessage.senderId;
-      const isMessageSentFromSelectedUser = senderId === selectedUser._id;
-      
-      // Always update last message
-      get().setLastMessage(senderId, newMessage, false);
-      
-      // Always update last message time for the sender or receiver
+      const isGroup = selectedChat.type === 'group';
+      const chatId = selectedChat._id;
+
+      const populatedNewMessage = (function(message, allUsers) {
+        if (typeof message.senderId === 'string') {
+          const sender = allUsers.find(user => user._id === message.senderId);
+          return { 
+            ...message, 
+            senderId: sender || { _id: message.senderId, fullName: "Unknown User", profilePic: "/avatar.png" } 
+          };
+        }
+        return message;
+      })(newMessage, get().users);
+
+      get().setLastMessage(senderId, populatedNewMessage, isGroup);
       get().setLastMessageTime(senderId, Date.now());
 
-      if (!isMessageSentFromSelectedUser) {
-        get().incrementUnreadCount(senderId);
+      if ((isGroup && newMessage.groupId !== chatId) || (!isGroup && senderId !== chatId)) {
+        get().incrementUnreadCount(isGroup ? newMessage.groupId : senderId);
         return;
       }
-  
-      set({
-        messages: [...get().messages, newMessage],
-      });
-      
-      get().setLastMessageTime(senderId, Date.now());
-      
+
+      set((state) => ({
+        messages: [...state.messages, populatedNewMessage],
+      }));
+
       if (senderId !== authUserId) {
-        get().markMessagesAsRead([newMessage._id], false, senderId);
+        get().markMessagesAsRead([newMessage._id], isGroup, chatId);
       }
-    });
-  
+    };
+
+    socket.on("newMessage", handleNewMessage);
+    socket.on("newGroupMessage", handleNewMessage);
+
     socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
       get().updateMessageReadStatus(messageIds, readBy, readAt);
     });
   },
 
-  subscribeToGroupMessages: () => {
-    const { selectedGroup } = get();
-    if (!selectedGroup) return;
-  
-    const socket = useAuthStore.getState().socket;
-    const authUserId = useAuthStore.getState().authUser._id;
-  
-    socket.on("newGroupMessage", ({ groupId, message }) => {
-      // Always update last message
-      get().setLastMessage(groupId, message, true);
-      
-      // Always update last message time for the group
-      get().setLastMessageTime(groupId, Date.now());
-
-      if (groupId !== selectedGroup._id) {
-        get().incrementUnreadCount(groupId);
-      } else {
-        set({
-          messages: [...get().messages, message],
-        });
-
-        const senderId = message.senderId?._id || message.senderId;
-        if (senderId !== authUserId) {
-          get().markMessagesAsRead([message._id], true, groupId);
-        }
-      }
-    });
-  
-    socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
-      get().updateMessageReadStatus(messageIds, readBy, readAt);
-    });
-  },
-
-  unsubscribeFromMessages: () => {
+  unsubscribeFromChatMessages: () => {
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage");
     socket.off("newGroupMessage");
     socket.off("messages:read:update");
   },
 
-  setSelectedUser: (selectedUser) => {
-    if (selectedUser) {
-      get().clearUnreadCount(selectedUser._id);
+  setSelectedChat: (chat) => {
+    if (chat) {
+      get().clearUnreadCount(chat._id);
     }
-    set({ selectedUser, selectedGroup: null });
-  },
-  
-  setSelectedGroup: (selectedGroup) => {
-    if (selectedGroup) {
-      get().clearUnreadCount(selectedGroup._id);
-    }
-    set({ selectedGroup, selectedUser: null });
+    set({ selectedChat: chat });
   },
 
   setLastMessage: (chatId, message, isGroup = false) => {
@@ -412,26 +431,21 @@ export const useChatStore = create((set, get) => ({
         }
       };
 
-      let newUsers = state.users;
-      let newGroups = state.groups;
+      let newChats = state.users.map(user => ({ ...user, type: 'user', chatId: user._id, name: user.fullName }));
+      newChats = [...newChats, ...state.groups.map(group => ({ ...group, type: 'group', chatId: group._id }))];
 
-      if (isGroup) {
-        newGroups = state.groups.map((group) => 
-          group._id === chatId ? { ...group, lastMessage: newLastMessages[chatId] } : group
-        );
-      } else {
-        newUsers = state.users.map((user) => 
-          user._id === chatId ? { ...user, lastMessage: newLastMessages[chatId] } : user
-        );
-      }
+      newChats = newChats.map(c => 
+        c.chatId === chatId ? { ...c, lastMessage: newLastMessages[chatId] } : c
+      );
 
       return {
         lastMessages: newLastMessages,
-        users: newUsers,
-        groups: newGroups
+        users: newChats.filter(c => c.type === 'user').map(c => { delete c.type; delete c.chatId; return c; }),
+        groups: newChats.filter(c => c.type === 'group').map(c => { delete c.type; delete c.chatId; return c; }),
       };
     });
   },
+
 }));
 
 

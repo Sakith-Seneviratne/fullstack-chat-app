@@ -32,13 +32,13 @@ const ReadReceiptIcon = ({ message, authUserId, selectedGroup }) => {
   // Message has been read
   return (
     <div className="flex items-center gap-1 text-xs mt-1">
-      <CheckCheck size={14} className="text-blue-500" />
+      <CheckCheck size={14} className="text-neutral-400" />
       {selectedGroup ? (
-        <span className="text-blue-500">
+        <span className="text-neutral-400">
           Read by {readByOthers.length}
         </span>
       ) : (
-        <span className="text-blue-500">Read</span>
+        <span className="text-neutral-400">Read</span>
       )}
     </div>
   );
