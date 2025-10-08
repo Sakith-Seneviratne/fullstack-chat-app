@@ -321,7 +321,7 @@ export const useChatStore = create((set, get) => ({
       const isMessageSentFromSelectedUser = senderId === selectedUser._id;
       
       // Always update last message
-      get().setLastMessage(senderId, newMessage);
+      get().setLastMessage(senderId, newMessage, false);
       
       // Always update last message time for the sender or receiver
       get().setLastMessageTime(senderId, Date.now());
@@ -356,26 +356,22 @@ export const useChatStore = create((set, get) => ({
   
     socket.on("newGroupMessage", ({ groupId, message }) => {
       // Always update last message
-      get().setLastMessage(groupId, message);
+      get().setLastMessage(groupId, message, true);
       
       // Always update last message time for the group
       get().setLastMessageTime(groupId, Date.now());
 
       if (groupId !== selectedGroup._id) {
         get().incrementUnreadCount(groupId);
-        get().setLastMessageTime(groupId, Date.now());
-        return;
-      }
-  
-      set({
-        messages: [...get().messages, message],
-      });
-      
-      get().setLastMessageTime(groupId, Date.now());
-      
-      const senderId = message.senderId?._id || message.senderId;
-      if (senderId !== authUserId) {
-        get().markMessagesAsRead([message._id], true, groupId);
+      } else {
+        set({
+          messages: [...get().messages, message],
+        });
+
+        const senderId = message.senderId?._id || message.senderId;
+        if (senderId !== authUserId) {
+          get().markMessagesAsRead([message._id], true, groupId);
+        }
       }
     });
   
@@ -405,17 +401,36 @@ export const useChatStore = create((set, get) => ({
     set({ selectedGroup, selectedUser: null });
   },
 
-  setLastMessage: (chatId, message) => {
-    set((state) => ({
-      lastMessages: {
+  setLastMessage: (chatId, message, isGroup = false) => {
+    set((state) => {
+      const newLastMessages = {
         ...state.lastMessages,
         [chatId]: {
           text: message.text,
           image: message.image,
           senderId: message.senderId
         }
+      };
+
+      let newUsers = state.users;
+      let newGroups = state.groups;
+
+      if (isGroup) {
+        newGroups = state.groups.map((group) => 
+          group._id === chatId ? { ...group, lastMessage: newLastMessages[chatId] } : group
+        );
+      } else {
+        newUsers = state.users.map((user) => 
+          user._id === chatId ? { ...user, lastMessage: newLastMessages[chatId] } : user
+        );
       }
-    }));
+
+      return {
+        lastMessages: newLastMessages,
+        users: newUsers,
+        groups: newGroups
+      };
+    });
   },
 }));
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
@@ -34,48 +34,57 @@ const Sidebar = () => {
   }, [getUsers, getGroups]);
 
   // Helper to format last message preview
-  const formatLastMessage = (chatId) => {
+  const formatLastMessage = (chatId, isGroup) => {
     const lastMsg = lastMessages?.[chatId];
     if (!lastMsg) return null;
+
+    const sender = users.find((user) => user._id === lastMsg.senderId);
+    const senderName = sender?.fullName || "Unknown";
 
     if (lastMsg.image && !lastMsg.text) {
       return (
         <div className="flex items-center gap-1">
           <ImageIcon className="w-3 h-3" />
-          <span>Photo</span>
+          <span>{isGroup ? `${senderName}: Photo` : "Photo"}</span>
         </div>
       );
     }
 
-    return lastMsg.text?.length > 30 
+    const messageText = lastMsg.text?.length > 30 
       ? lastMsg.text.substring(0, 30) + "..." 
       : lastMsg.text;
+
+    return isGroup ? `${senderName}: ${messageText}` : messageText;
   };
 
   // Sort users by unread status and last message time
-  const sortedUsers = [...users].sort((a, b) => {
-    const aUnread = unreadCounts[a._id] || 0;
-    const bUnread = unreadCounts[b._id] || 0;
-    
-    if (aUnread > 0 && bUnread === 0) return -1;
-    if (bUnread > 0 && aUnread === 0) return 1;
-    
-    const aTime = lastMessageTimes[a._id] || 0;
-    const bTime = lastMessageTimes[b._id] || 0;
-    return bTime - aTime;
-  });
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const aUnread = unreadCounts[a._id] || 0;
+      const bUnread = unreadCounts[b._id] || 0;
+      
+      if (aUnread > 0 && bUnread === 0) return -1;
+      if (bUnread > 0 && aUnread === 0) return 1;
+      
+      const aTime = lastMessageTimes[a._id] || 0;
+      const bTime = lastMessageTimes[b._id] || 0;
+      return bTime - aTime;
+    });
+  }, [users, unreadCounts, lastMessageTimes]);
 
-  const sortedGroups = [...groups].sort((a, b) => {
-    const aUnread = unreadCounts[a._id] || 0;
-    const bUnread = unreadCounts[b._id] || 0;
-    
-    if (aUnread > 0 && bUnread === 0) return -1;
-    if (bUnread > 0 && aUnread === 0) return 1;
-    
-    const aTime = lastMessageTimes[a._id] || 0;
-    const bTime = lastMessageTimes[b._id] || 0;
-    return bTime - aTime;
-  });
+  const sortedGroups = useMemo(() => {
+    return [...groups].sort((a, b) => {
+      const aUnread = unreadCounts[a._id] || 0;
+      const bUnread = unreadCounts[b._id] || 0;
+      
+      if (aUnread > 0 && bUnread === 0) return -1;
+      if (bUnread > 0 && aUnread === 0) return 1;
+      
+      const aTime = lastMessageTimes[a._id] || 0;
+      const bTime = lastMessageTimes[b._id] || 0;
+      return bTime - aTime;
+    });
+  }, [groups, unreadCounts, lastMessageTimes]);
 
   const filteredUsers = showOnlineOnly
     ? sortedUsers.filter((user) => onlineUsers.includes(user._id))
@@ -181,7 +190,7 @@ const Sidebar = () => {
               {filteredUsers.map((user) => {
                 const unreadCount = unreadCounts[user._id] || 0;
                 const hasUnread = unreadCount > 0;
-                const lastMessage = formatLastMessage(user._id);
+                const lastMessage = formatLastMessage(user._id, false);
 
                 return (
                   <button
@@ -260,7 +269,7 @@ const Sidebar = () => {
                   {sortedGroups.map((group) => {
                     const unreadCount = unreadCounts[group._id] || 0;
                     const hasUnread = unreadCount > 0;
-                    const lastMessage = formatLastMessage(group._id);
+                    const lastMessage = formatLastMessage(group._id, true);
 
                     return (
                       <button
