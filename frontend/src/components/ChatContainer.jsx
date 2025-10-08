@@ -25,6 +25,7 @@ const ChatContainer = () => {
   const messageEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
+
   useEffect(() => {
     if (selectedUser) {
       getMessages(selectedUser._id);
@@ -50,6 +51,7 @@ const ChatContainer = () => {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages]);
+  
 
   // Mark messages as read when component mounts or messages change
   useEffect(() => {
@@ -80,6 +82,21 @@ const ChatContainer = () => {
       }
     }
   }, [messages, authUser, socket, selectedUser, selectedGroup, markMessagesAsRead]);
+
+  // Add this useEffect after your existing useEffects
+useEffect(() => {
+  if (selectedGroup && socket) {
+    // Join the group room
+    socket.emit("joinGroup", selectedGroup._id);
+    console.log("🏠 Joined group room:", selectedGroup._id);
+    
+    return () => {
+      // Leave the group room when switching chats
+      socket.emit("leaveGroup", selectedGroup._id);
+      console.log("🚪 Left group room:", selectedGroup._id);
+    };
+  }
+}, [selectedGroup, socket]);
 
   // Helper function to check if message is read
   const getReadStatus = (message) => {

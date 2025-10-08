@@ -234,43 +234,59 @@ export const useChatStore = create((set, get) => ({
   },
 
   subscribeToMessages: () => {
-    const { selectedUser } = get();
-    if (!selectedUser) return;
+  const { selectedUser } = get();
+  if (!selectedUser) return;
 
-    const socket = useAuthStore.getState().socket;
+  const socket = useAuthStore.getState().socket;
 
-    socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
+  socket.on("newMessage", (newMessage) => {
+    // Handle both populated and non-populated senderId
+    const senderId = newMessage.senderId?._id || newMessage.senderId;
+    console.log("👤 Sender ID:", senderId);
+    
+    const isMessageSentFromSelectedUser = senderId === selectedUser._id;
+    console.log("✅ Is from selected user?", isMessageSentFromSelectedUser);
+    
+    if (!isMessageSentFromSelectedUser) {
+      console.log("❌ Message not from selected user, ignoring");
+      return;
+    }
 
-      set({
-        messages: [...get().messages, newMessage],
-      });
+    console.log("✅ Adding message to state");
+    set({
+      messages: [...get().messages, newMessage],
     });
+  });
 
-    socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
-      get().updateMessageReadStatus(messageIds, readBy, readAt);
-    });
-  },
+  socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
+    get().updateMessageReadStatus(messageIds, readBy, readAt);
+  });
+},
 
   subscribeToGroupMessages: () => {
-    const { selectedGroup } = get();
-    if (!selectedGroup) return;
+  const { selectedGroup } = get();
+  if (!selectedGroup) return;
 
-    const socket = useAuthStore.getState().socket;
+  const socket = useAuthStore.getState().socket;
 
-    socket.on("newGroupMessage", ({ groupId, message }) => {
-      if (groupId === selectedGroup._id) {
-        set({
-          messages: [...get().messages, message],
-        });
-      }
-    });
+  socket.on("newGroupMessage", ({ groupId, message }) => {
+    console.log("📨 Group message received:", { groupId, message });
+    console.log("📌 Selected group ID:", selectedGroup._id);
+    
+    if (groupId === selectedGroup._id) {
+      console.log("✅ Adding group message to state");
+      set({
+        messages: [...get().messages, message],
+      });
+    } else {
+      console.log("❌ Message not for this group, ignoring");
+    }
+  });
 
-    socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
-      get().updateMessageReadStatus(messageIds, readBy, readAt);
-    });
-  },
+  socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
+    get().updateMessageReadStatus(messageIds, readBy, readAt);
+  });
+},
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;

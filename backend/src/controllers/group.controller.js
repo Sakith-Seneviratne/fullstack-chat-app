@@ -168,12 +168,10 @@ export const sendGroupMessage = async (req, res) => {
       "-password"
     );
 
-    // Emit to all group members
-    group.members.forEach((memberId) => {
-      io.to(memberId.toString()).emit("newGroupMessage", {
-        groupId,
-        message: populatedMessage,
-      });
+    // Emit to all group members via group room
+    io.to(`group_${groupId}`).emit("newGroupMessage", {
+      groupId,
+      message: populatedMessage,
     });
 
     res.status(201).json(populatedMessage);
