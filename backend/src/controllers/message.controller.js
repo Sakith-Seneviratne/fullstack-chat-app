@@ -116,25 +116,56 @@ export const sendMessage = async (req, res) => {
 
 export const markMessagesAsRead = async (req, res) => {
   try {
-    const { messageIds } = req.body;
+    const { messageIds, isGroup, chatId } = req.body;
     const userId = req.user._id;
 
     if (!messageIds || !Array.isArray(messageIds)) {
       return res.status(400).json({ message: "Invalid message IDs" });
     }
 
-    await Message.updateMany(
-      {
+    const readAt = new Date();
+
+    let query;
+    if (isGroup) {
+      query = {
         _id: { $in: messageIds },
+        groupId: chatId,
         senderId: { $ne: userId },
-      },
+      };
+    } else {
+      query = {
+        _id: { $in: messageIds },
+        receiverId: userId,
+        senderId: { $ne: userId },
+      };
+    }
+
+    // Update messages
+    await Message.updateMany(
+      query,
       {
         $addToSet: {
-          readBy: { user: userId, readAt: new Date() },
+          readBy: { user: userId, readAt },
         },
         isRead: true,
       }
     );
+
+    // Get the sender IDs to notify them
+    const messages = await Message.find({ _id: { $in: messageIds } });
+    const senderIds = [...new Set(messages.map(msg => msg.senderId.toString()))];
+
+    // Emit read status to all senders
+    senderIds.forEach(senderId => {
+      const senderSocketId = getReceiverSocketId(senderId);
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("messages:read:update", {
+          messageIds,
+          readBy: userId,
+          readAt,
+        });
+      }
+    });
 
     res.status(200).json({ success: true, message: "Messages marked as read" });
   } catch (error) {

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 import SidebarSkeleton from "./skeletons/SidebarSkeleton";
-import { Users, UserPlus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, UserPlus, ChevronLeft, ChevronRight, Image as ImageIcon, MessageSquare } from "lucide-react";
 import CreateGroupModal from "./CreateGroupModal";
 
 const Sidebar = () => {
@@ -17,6 +17,9 @@ const Sidebar = () => {
     setSelectedGroup,
     isUsersLoading,
     isGroupsLoading,
+    unreadCounts,
+    lastMessageTimes,
+    lastMessages, // Add this to store
   } = useChatStore();
 
   const { onlineUsers, authUser } = useAuthStore();
@@ -30,9 +33,53 @@ const Sidebar = () => {
     getGroups();
   }, [getUsers, getGroups]);
 
+  // Helper to format last message preview
+  const formatLastMessage = (chatId) => {
+    const lastMsg = lastMessages?.[chatId];
+    if (!lastMsg) return null;
+
+    if (lastMsg.image && !lastMsg.text) {
+      return (
+        <div className="flex items-center gap-1">
+          <ImageIcon className="w-3 h-3" />
+          <span>Photo</span>
+        </div>
+      );
+    }
+
+    return lastMsg.text?.length > 30 
+      ? lastMsg.text.substring(0, 30) + "..." 
+      : lastMsg.text;
+  };
+
+  // Sort users by unread status and last message time
+  const sortedUsers = [...users].sort((a, b) => {
+    const aUnread = unreadCounts[a._id] || 0;
+    const bUnread = unreadCounts[b._id] || 0;
+    
+    if (aUnread > 0 && bUnread === 0) return -1;
+    if (bUnread > 0 && aUnread === 0) return 1;
+    
+    const aTime = lastMessageTimes[a._id] || 0;
+    const bTime = lastMessageTimes[b._id] || 0;
+    return bTime - aTime;
+  });
+
+  const sortedGroups = [...groups].sort((a, b) => {
+    const aUnread = unreadCounts[a._id] || 0;
+    const bUnread = unreadCounts[b._id] || 0;
+    
+    if (aUnread > 0 && bUnread === 0) return -1;
+    if (bUnread > 0 && aUnread === 0) return 1;
+    
+    const aTime = lastMessageTimes[a._id] || 0;
+    const bTime = lastMessageTimes[b._id] || 0;
+    return bTime - aTime;
+  });
+
   const filteredUsers = showOnlineOnly
-    ? users.filter((user) => onlineUsers.includes(user._id))
-    : users;
+    ? sortedUsers.filter((user) => onlineUsers.includes(user._id))
+    : sortedUsers;
 
   if (isUsersLoading) return <SidebarSkeleton />;
 
@@ -131,39 +178,68 @@ const Sidebar = () => {
         <div className="overflow-y-auto flex-1 py-2">
           {activeTab === "users" ? (
             <>
-              {filteredUsers.map((user) => (
-                <button
-                  key={user._id}
-                  onClick={() => setSelectedUser(user)}
-                  className={`w-full p-3 flex items-center gap-3 transition-all ${
-                    selectedUser?._id === user._id
-                      ? "bg-neutral-100 dark:bg-neutral-800 border-l-2 border-blue-600"
-                      : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                    <img
-                      src={user.profilePic || "/avatar.png"}
-                      alt={user.name}
-                      className="w-10 h-10 rounded-full object-cover"
-                    />
-                    {onlineUsers.includes(user._id) && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-white dark:ring-neutral-900" />
-                    )}
-                  </div>
+              {filteredUsers.map((user) => {
+                const unreadCount = unreadCounts[user._id] || 0;
+                const hasUnread = unreadCount > 0;
+                const lastMessage = formatLastMessage(user._id);
 
-                  {open && (
-                    <div className="text-left min-w-0 flex-1">
-                      <div className="font-medium text-neutral-900 dark:text-neutral-100 truncate text-sm">
-                        {user.fullName}
-                      </div>
-                      <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                        {onlineUsers.includes(user._id) ? "Online" : "Offline"}
-                      </div>
+                return (
+                  <button
+                    key={user._id}
+                    onClick={() => setSelectedUser(user)}
+                    className={`w-full p-3 flex items-center gap-3 transition-all relative ${
+                      selectedUser?._id === user._id
+                        ? "bg-neutral-100 dark:bg-neutral-800 border-l-2 border-blue-600"
+                        : hasUnread
+                        ? "bg-blue-50 dark:bg-blue-900/10 hover:bg-blue-100 dark:hover:bg-blue-900/20"
+                        : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                    }`}
+                  >
+                    <div className="relative shrink-0">
+                      <img
+                        src={user.profilePic || "/avatar.png"}
+                        alt={user.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                      {onlineUsers.includes(user._id) && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-white dark:ring-neutral-900" />
+                      )}
                     </div>
-                  )}
-                </button>
-              ))}
+
+                    {open && (
+                      <div className="text-left min-w-0 flex-1">
+                        <div className={`truncate text-sm ${
+                          hasUnread 
+                            ? "text-neutral-900 dark:text-neutral-100 font-semibold" 
+                            : "text-neutral-900 dark:text-neutral-100 font-medium"
+                        }`}>
+                          {user.fullName}
+                        </div>
+                        <div className={`text-xs truncate ${
+                          hasUnread
+                            ? "text-neutral-700 dark:text-neutral-300 font-medium"
+                            : "text-neutral-500 dark:text-neutral-400"
+                        }`}>
+                          {lastMessage || (onlineUsers.includes(user._id) ? "Online" : "Offline")}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Unread Indicator */}
+                    {open && hasUnread && (
+                      <div className="shrink-0 flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                        <MessageSquare className="w-4 h-4" />
+                        <span className="text-xs font-semibold">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                      </div>
+                    )}
+
+                    {/* Unread Icon for Collapsed Sidebar */}
+                    {!open && hasUnread && (
+                      <MessageSquare className="absolute top-2 right-2 w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    )}
+                  </button>
+                );
+              })}
 
               {filteredUsers.length === 0 && open && (
                 <div className="text-center text-neutral-500 dark:text-neutral-400 py-8 px-4 text-sm">
@@ -181,38 +257,67 @@ const Sidebar = () => {
                 )
               ) : (
                 <>
-                  {groups.map((group) => (
-                    <button
-                      key={group._id}
-                      onClick={() => setSelectedGroup(group)}
-                      className={`w-full p-3 flex items-center gap-3 transition-all ${
-                        selectedGroup?._id === group._id
-                          ? "bg-neutral-100 dark:bg-neutral-800 border-l-2 border-blue-600"
-                          : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
-                      }`}
-                    >
-                      <div className="relative shrink-0">
-                        <img
-                          src={group.groupPic || "/avatar.png"}
-                          alt={group.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                      </div>
+                  {sortedGroups.map((group) => {
+                    const unreadCount = unreadCounts[group._id] || 0;
+                    const hasUnread = unreadCount > 0;
+                    const lastMessage = formatLastMessage(group._id);
 
-                      {open && (
-                        <div className="text-left min-w-0 flex-1">
-                          <div className="font-medium text-neutral-900 dark:text-neutral-100 truncate text-sm">
-                            {group.name}
-                          </div>
-                          <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                            {group.members.length} members
-                          </div>
+                    return (
+                      <button
+                        key={group._id}
+                        onClick={() => setSelectedGroup(group)}
+                        className={`w-full p-3 flex items-center gap-3 transition-all relative ${
+                          selectedGroup?._id === group._id
+                            ? "bg-neutral-100 dark:bg-neutral-800 border-l-2 border-blue-600"
+                            : hasUnread
+                            ? "bg-blue-50 dark:bg-blue-900/10 hover:bg-blue-100 dark:hover:bg-blue-900/20"
+                            : "hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                        }`}
+                      >
+                        <div className="relative shrink-0">
+                          <img
+                            src={group.groupPic || "/avatar.png"}
+                            alt={group.name}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
                         </div>
-                      )}
-                    </button>
-                  ))}
 
-                  {groups.length === 0 && open && (
+                        {open && (
+                          <div className="text-left min-w-0 flex-1">
+                            <div className={`truncate text-sm ${
+                              hasUnread 
+                                ? "text-neutral-900 dark:text-neutral-100 font-semibold" 
+                                : "text-neutral-900 dark:text-neutral-100 font-medium"
+                            }`}>
+                              {group.name}
+                            </div>
+                            <div className={`text-xs truncate ${
+                              hasUnread
+                                ? "text-neutral-700 dark:text-neutral-300 font-medium"
+                                : "text-neutral-500 dark:text-neutral-400"
+                            }`}>
+                              {lastMessage || `${group.members.length} members`}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Unread Indicator */}
+                        {open && hasUnread && (
+                          <div className="shrink-0 flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                            <MessageSquare className="w-4 h-4" />
+                            <span className="text-xs font-semibold">{unreadCount > 99 ? "99+" : unreadCount}</span>
+                          </div>
+                        )}
+
+                        {/* Unread Icon for Collapsed Sidebar */}
+                        {!open && hasUnread && (
+                          <MessageSquare className="absolute top-2 right-2 w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {sortedGroups.length === 0 && open && (
                     <div className="text-center text-neutral-500 dark:text-neutral-400 py-8 px-4">
                       <p className="text-sm mb-3">No groups yet</p>
                       <button

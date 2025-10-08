@@ -12,13 +12,22 @@ export const useChatStore = create((set, get) => ({
   isUsersLoading: false,
   isGroupsLoading: false,
   isMessagesLoading: false,
-  unreadCounts: {},
+  unreadCounts: {}, // { userId: count } or { groupId: count }
+  lastMessageTimes: {}, // { userId: timestamp } or { groupId: timestamp }
+  lastMessages: {}, // { chatId: { text, image, senderId } }
 
   getUsers: async () => {
     set({ isUsersLoading: true });
     try {
       const res = await axiosInstance.get("/messages/users");
       set({ users: res.data });
+      
+      // Fetch unread counts for all users
+      const authUserId = useAuthStore.getState().authUser._id;
+      const unreadPromises = res.data.map(user => 
+        get().getUnreadCount(user._id, false)
+      );
+      await Promise.all(unreadPromises);
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -31,6 +40,12 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/groups");
       set({ groups: res.data });
+      
+      // Fetch unread counts for all groups
+      const unreadPromises = res.data.map(group => 
+        get().getUnreadCount(group._id, true)
+      );
+      await Promise.all(unreadPromises);
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -43,6 +58,19 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get(`/messages/${userId}`);
       set({ messages: res.data });
+      
+      // Mark messages as read
+      const unreadMessageIds = res.data
+        .filter(msg => {
+          const authUserId = useAuthStore.getState().authUser._id;
+          return msg.senderId._id === userId && 
+                 !msg.readBy?.some(r => r.user === authUserId);
+        })
+        .map(msg => msg._id);
+      
+      if (unreadMessageIds.length > 0) {
+        await get().markMessagesAsRead(unreadMessageIds, false, userId);
+      }
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -55,6 +83,19 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get(`/groups/${groupId}/messages`);
       set({ messages: res.data });
+      
+      // Mark group messages as read
+      const authUserId = useAuthStore.getState().authUser._id;
+      const unreadMessageIds = res.data
+        .filter(msg => {
+          return msg.senderId._id !== authUserId && 
+                 !msg.readBy?.some(r => r.user === authUserId);
+        })
+        .map(msg => msg._id);
+      
+      if (unreadMessageIds.length > 0) {
+        await get().markMessagesAsRead(unreadMessageIds, true, groupId);
+      }
     } catch (error) {
       toast.error(error.response.data.message);
     } finally {
@@ -67,6 +108,9 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
       set({ messages: [...messages, res.data] });
+      
+      // Update last message time
+      get().setLastMessageTime(selectedUser._id, Date.now());
     } catch (error) {
       toast.error(error.response.data.message);
     }
@@ -77,12 +121,15 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.post(`/groups/${selectedGroup._id}/send`, messageData);
       set({ messages: [...messages, res.data] });
+      
+      // Update last message time
+      get().setLastMessageTime(selectedGroup._id, Date.now());
     } catch (error) {
       toast.error(error.response.data.message);
     }
   },
 
-  markMessagesAsRead: async (messageIds) => {
+  markMessagesAsRead: async (messageIds, isGroup = false, chatId = null) => {
     try {
       await axiosInstance.post("/messages/mark-read", { messageIds });
       
@@ -105,10 +152,18 @@ export const useChatStore = create((set, get) => ({
         return msg;
       });
       
-      set({ messages: updatedMessages });
-      
-      const chatId = selectedUser?._id || selectedGroup?._id;
-      if (chatId) {
+      set({
+        messages: updatedMessages,
+      });
+
+      if (isGroup && chatId) {
+        set({
+          unreadCounts: {
+            ...unreadCounts,
+            [chatId]: 0
+          }
+        });
+      } else if (!isGroup && chatId) {
         set({
           unreadCounts: {
             ...unreadCounts,
@@ -138,6 +193,27 @@ export const useChatStore = create((set, get) => ({
     } catch (error) {
       console.error("Error getting unread count:", error);
     }
+  },
+
+  incrementUnreadCount: (chatId) => {
+    set((state) => ({
+      unreadCounts: {
+        ...state.unreadCounts,
+        [chatId]: (state.unreadCounts[chatId] || 0) + 1
+      }
+    }));
+  },
+
+  clearUnreadCount: (chatId) => {
+    set((state) => ({
+      unreadCounts: { ...state.unreadCounts, [chatId]: 0 }
+    }));
+  },
+
+  setLastMessageTime: (chatId, time) => {
+    set((state) => ({
+      lastMessageTimes: { ...state.lastMessageTimes, [chatId]: time }
+    }));
   },
 
   updateMessageReadStatus: (messageIds, readBy, readAt) => {
@@ -234,59 +310,79 @@ export const useChatStore = create((set, get) => ({
   },
 
   subscribeToMessages: () => {
-  const { selectedUser } = get();
-  if (!selectedUser) return;
+    const { selectedUser } = get();
+    if (!selectedUser) return;
+  
+    const socket = useAuthStore.getState().socket;
+    const authUserId = useAuthStore.getState().authUser._id;
+  
+    socket.on("newMessage", (newMessage) => {
+      const senderId = newMessage.senderId?._id || newMessage.senderId;
+      const isMessageSentFromSelectedUser = senderId === selectedUser._id;
+      
+      // Always update last message
+      get().setLastMessage(senderId, newMessage);
+      
+      // Always update last message time for the sender or receiver
+      get().setLastMessageTime(senderId, Date.now());
 
-  const socket = useAuthStore.getState().socket;
-
-  socket.on("newMessage", (newMessage) => {
-    // Handle both populated and non-populated senderId
-    const senderId = newMessage.senderId?._id || newMessage.senderId;
-    console.log("👤 Sender ID:", senderId);
-    
-    const isMessageSentFromSelectedUser = senderId === selectedUser._id;
-    console.log("✅ Is from selected user?", isMessageSentFromSelectedUser);
-    
-    if (!isMessageSentFromSelectedUser) {
-      console.log("❌ Message not from selected user, ignoring");
-      return;
-    }
-
-    console.log("✅ Adding message to state");
-    set({
-      messages: [...get().messages, newMessage],
+      if (!isMessageSentFromSelectedUser) {
+        get().incrementUnreadCount(senderId);
+        return;
+      }
+  
+      set({
+        messages: [...get().messages, newMessage],
+      });
+      
+      get().setLastMessageTime(senderId, Date.now());
+      
+      if (senderId !== authUserId) {
+        get().markMessagesAsRead([newMessage._id], false, senderId);
+      }
     });
-  });
-
-  socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
-    get().updateMessageReadStatus(messageIds, readBy, readAt);
-  });
-},
+  
+    socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
+      get().updateMessageReadStatus(messageIds, readBy, readAt);
+    });
+  },
 
   subscribeToGroupMessages: () => {
-  const { selectedGroup } = get();
-  if (!selectedGroup) return;
+    const { selectedGroup } = get();
+    if (!selectedGroup) return;
+  
+    const socket = useAuthStore.getState().socket;
+    const authUserId = useAuthStore.getState().authUser._id;
+  
+    socket.on("newGroupMessage", ({ groupId, message }) => {
+      // Always update last message
+      get().setLastMessage(groupId, message);
+      
+      // Always update last message time for the group
+      get().setLastMessageTime(groupId, Date.now());
 
-  const socket = useAuthStore.getState().socket;
-
-  socket.on("newGroupMessage", ({ groupId, message }) => {
-    console.log("📨 Group message received:", { groupId, message });
-    console.log("📌 Selected group ID:", selectedGroup._id);
-    
-    if (groupId === selectedGroup._id) {
-      console.log("✅ Adding group message to state");
+      if (groupId !== selectedGroup._id) {
+        get().incrementUnreadCount(groupId);
+        get().setLastMessageTime(groupId, Date.now());
+        return;
+      }
+  
       set({
         messages: [...get().messages, message],
       });
-    } else {
-      console.log("❌ Message not for this group, ignoring");
-    }
-  });
-
-  socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
-    get().updateMessageReadStatus(messageIds, readBy, readAt);
-  });
-},
+      
+      get().setLastMessageTime(groupId, Date.now());
+      
+      const senderId = message.senderId?._id || message.senderId;
+      if (senderId !== authUserId) {
+        get().markMessagesAsRead([message._id], true, groupId);
+      }
+    });
+  
+    socket.on("messages:read:update", ({ messageIds, readBy, readAt }) => {
+      get().updateMessageReadStatus(messageIds, readBy, readAt);
+    });
+  },
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
@@ -295,6 +391,33 @@ export const useChatStore = create((set, get) => ({
     socket.off("messages:read:update");
   },
 
-  setSelectedUser: (selectedUser) => set({ selectedUser, selectedGroup: null }),
-  setSelectedGroup: (selectedGroup) => set({ selectedGroup, selectedUser: null }),
+  setSelectedUser: (selectedUser) => {
+    if (selectedUser) {
+      get().clearUnreadCount(selectedUser._id);
+    }
+    set({ selectedUser, selectedGroup: null });
+  },
+  
+  setSelectedGroup: (selectedGroup) => {
+    if (selectedGroup) {
+      get().clearUnreadCount(selectedGroup._id);
+    }
+    set({ selectedGroup, selectedUser: null });
+  },
+
+  setLastMessage: (chatId, message) => {
+    set((state) => ({
+      lastMessages: {
+        ...state.lastMessages,
+        [chatId]: {
+          text: message.text,
+          image: message.image,
+          senderId: message.senderId
+        }
+      }
+    }));
+  },
 }));
+
+
+
