@@ -48,7 +48,7 @@ const ChatContainer = () => {
 
     // Find unread messages not sent by current user
     const unreadMessages = messages.filter((msg) => {
-      const senderId = msg.senderId._id || msg.senderId;
+      const senderId = msg.senderId?.['_id'] || msg.senderId;
       const isOwnMessage = senderId === authUser._id;
       const isRead = msg.readBy?.some((r) => r.user === authUser._id);
       return !isOwnMessage && !isRead;
@@ -136,7 +136,7 @@ useEffect(() => {
         ref={messagesContainerRef}
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
-        {messages.map((message) => {
+        {Array.isArray(messages) && messages.map((message, index) => {
           const senderId = message.senderId?.['_id'] || message.senderId;
           const isOwnMessage = senderId === authUser._id;
           const readStatus = getReadStatus(message);
@@ -144,9 +144,9 @@ useEffect(() => {
 
           return (
             <div
-              key={message._id}
+              key={message._id || index}
               className={`flex items-start gap-3 ${isOwnMessage ? "justify-end" : "justify-start"}`}
-              ref={messageEndRef}
+              {...(index === messages.length - 1 && { ref: messageEndRef })}
             >
               {!isOwnMessage && (
                 <div className="shrink-0">

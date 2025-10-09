@@ -365,36 +365,55 @@ export const useChatStore = create((set, get) => ({
     const socket = useAuthStore.getState().socket;
     const authUserId = useAuthStore.getState().authUser._id;
 
-    const handleNewMessage = (newMessage) => {
-      const senderId = newMessage.senderId?._id || newMessage.senderId;
-      const isGroup = selectedChat.type === 'group';
-      const chatId = selectedChat._id;
+    const handleNewMessage = (incomingData) => {
+      const actualMessage = incomingData.message || incomingData;
 
-      const populatedNewMessage = (function(message, allUsers) {
-        if (typeof message.senderId === 'string') {
-          const sender = allUsers.find(user => user._id === message.senderId);
-          return { 
-            ...message, 
-            senderId: sender || { _id: message.senderId, fullName: "Unknown User", profilePic: "/avatar.png" } 
-          };
-        }
-        return message;
-      })(newMessage, get().users);
-
-      get().setLastMessage(senderId, populatedNewMessage, isGroup);
-      get().setLastMessageTime(senderId, Date.now());
-
-      if ((isGroup && newMessage.groupId !== chatId) || (!isGroup && senderId !== chatId)) {
-        get().incrementUnreadCount(isGroup ? newMessage.groupId : senderId);
+      if (!actualMessage) {
+        console.error("Received an empty message object:", incomingData);
         return;
       }
 
+      // Determine if it's a group chat based on selectedChat or message content
+      const isGroup = selectedChat?.type === 'group' || !!actualMessage.groupId;
+
+      // Determine the correct chatId to associate the message with
+      let targetChatId;
+      if (isGroup) {
+        targetChatId = selectedChat?._id || actualMessage.groupId;
+      } else {
+        targetChatId = selectedChat?._id === actualMessage.senderId?._id
+          ? selectedChat._id
+          : actualMessage.senderId?._id;
+      }
+
+      if (!targetChatId) {
+        console.error("Could not determine targetChatId for new message:", actualMessage);
+        return;
+      }
+
+      const senderId = actualMessage.senderId?._id || actualMessage.senderId;
+      const chatId = selectedChat?._id; // Use selectedChat's ID for current view
+
+      const populatedNewMessage = actualMessage;
+
+      // Update last message and time for the relevant chat in the sidebar
+      get().setLastMessage(targetChatId, populatedNewMessage, isGroup);
+      get().setLastMessageTime(targetChatId, Date.now());
+
+      // Handle unread counts if the message is for a different chat or group
+      if ((isGroup && targetChatId !== chatId) || (!isGroup && senderId !== chatId)) {
+        get().incrementUnreadCount(targetChatId);
+        return;
+      }
+
+      // Add the message to the current chat's messages if it's the selected chat
       set((state) => ({
         messages: [...state.messages, populatedNewMessage],
       }));
 
+      // Mark as read if not sent by the current user and it's the selected chat
       if (senderId !== authUserId) {
-        get().markMessagesAsRead([newMessage._id], isGroup, chatId);
+        get().markMessagesAsRead([actualMessage._id], isGroup, targetChatId);
       }
     };
 
@@ -427,21 +446,21 @@ export const useChatStore = create((set, get) => ({
         [chatId]: {
           text: message.text,
           image: message.image,
-          senderId: message.senderId
-        }
+          senderId: message.senderId,
+        },
       };
 
-      let newChats = state.users.map(user => ({ ...user, type: 'user', chatId: user._id, name: user.fullName }));
-      newChats = [...newChats, ...state.groups.map(group => ({ ...group, type: 'group', chatId: group._id }))];
-
-      newChats = newChats.map(c => 
-        c.chatId === chatId ? { ...c, lastMessage: newLastMessages[chatId] } : c
+      let updatedUsers = state.users.map(user => 
+        user._id === chatId ? { ...user, lastMessage: newLastMessages[chatId] } : user
+      );
+      let updatedGroups = state.groups.map(group =>
+        group._id === chatId ? { ...group, lastMessage: newLastMessages[chatId] } : group
       );
 
       return {
         lastMessages: newLastMessages,
-        users: newChats.filter(c => c.type === 'user').map(c => { delete c.type; delete c.chatId; return c; }),
-        groups: newChats.filter(c => c.type === 'group').map(c => { delete c.type; delete c.chatId; return c; }),
+        users: updatedUsers,
+        groups: updatedGroups,
       };
     });
   },

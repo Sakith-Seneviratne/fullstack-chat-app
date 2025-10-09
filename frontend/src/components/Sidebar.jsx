@@ -6,19 +6,17 @@ import { Users, UserPlus, ChevronLeft, ChevronRight, Image as ImageIcon, Message
 import CreateGroupModal from "./CreateGroupModal";
 
 const Sidebar = () => {
-  const {
-    getUsers,
-    getGroups,
-    users,
-    groups,
-    selectedChat,
-    setSelectedChat,
-    isUsersLoading,
-    isGroupsLoading,
-    unreadCounts,
-    lastMessageTimes,
-    lastMessages, // Add this to store
-  } = useChatStore();
+  const getUsers = useChatStore((state) => state.getUsers);
+  const getGroups = useChatStore((state) => state.getGroups);
+  const users = useChatStore((state) => state.users);
+  const groups = useChatStore((state) => state.groups);
+  const selectedChat = useChatStore((state) => state.selectedChat);
+  const setSelectedChat = useChatStore((state) => state.setSelectedChat);
+  const isUsersLoading = useChatStore((state) => state.isUsersLoading);
+  const isGroupsLoading = useChatStore((state) => state.isGroupsLoading);
+  const unreadCounts = useChatStore((state) => state.unreadCounts);
+  const lastMessageTimes = useChatStore((state) => state.lastMessageTimes);
+  const lastMessages = useChatStore((state) => state.lastMessages);
 
   const { onlineUsers, authUser } = useAuthStore();
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
@@ -32,12 +30,27 @@ const Sidebar = () => {
   }, [getUsers, getGroups]);
 
   // Helper to format last message preview
-  const formatLastMessage = (chatId, isGroup) => {
-    const lastMsg = lastMessages?.[chatId];
+  const formatLastMessage = (chatId, isGroup, currentLastMessages) => {
+    const lastMsg = currentLastMessages?.[chatId];
     if (!lastMsg) return null;
 
-    const sender = users.find((user) => user._id === lastMsg.senderId);
-    const senderName = sender?.fullName || "Unknown";
+    let senderName = "Unknown";
+    if (isGroup) {
+
+      const group = groups.find((g) => g._id === chatId);
+
+      const actualSenderId = lastMsg.senderId?._id || lastMsg.senderId; // Handle senderId being object or string
+
+      const sender = group?.members.find((member) => {
+
+        return member._id === actualSenderId;
+      });
+
+      senderName = sender?.fullName || "Unknown";
+    } else {
+      const sender = users.find((user) => user._id === lastMsg.senderId);
+      senderName = sender?.fullName || "Unknown";
+    }
 
     if (lastMsg.image && !lastMsg.text) {
       return (
@@ -50,29 +63,45 @@ const Sidebar = () => {
 
     const messageText = lastMsg.text?.length > 30 
       ? lastMsg.text.substring(0, 30) + "..." 
-      : lastMsg.text;
+      : lastMsg.text || ""; // Ensure it's not undefined/null
 
     return isGroup ? `${senderName}: ${messageText}` : messageText;
   };
 
   const combinedChats = useMemo(() => {
-    const chats = [
-      ...users.map(user => ({ ...user, type: 'user', chatId: user._id, name: user.fullName })),
-      ...groups.map(group => ({ ...group, type: 'group', chatId: group._id }))
+    const allChats = [
+      ...users.map(user => ({
+        ...user,
+        type: 'user',
+        chatId: user._id,
+        name: user.fullName,
+        lastMessage: lastMessages[user._id],
+        lastMessageTime: lastMessageTimes[user._id],
+        unreadCount: unreadCounts[user._id] || 0,
+      })),
+      ...groups.map(group => ({
+        ...group,
+        type: 'group',
+        chatId: group._id,
+        name: group.name,
+        lastMessage: lastMessages[group._id],
+        lastMessageTime: lastMessageTimes[group._id],
+        unreadCount: unreadCounts[group._id] || 0,
+      }))
     ];
 
-    return chats.sort((a, b) => {
-      const aUnread = unreadCounts[a.chatId] || 0;
-      const bUnread = unreadCounts[b.chatId] || 0;
+    return allChats.sort((a, b) => {
+      const aTime = a.lastMessageTime || 0;
+      const bTime = b.lastMessageTime || 0;
+      const aUnread = a.unreadCount;
+      const bUnread = b.unreadCount;
 
       if (aUnread > 0 && bUnread === 0) return -1;
       if (bUnread > 0 && aUnread === 0) return 1;
-
-      const aTime = lastMessageTimes[a.chatId] || 0;
-      const bTime = lastMessageTimes[b.chatId] || 0;
+      
       return bTime - aTime;
     });
-  }, [users, groups, unreadCounts, lastMessageTimes]);
+  }, [users, groups, unreadCounts, lastMessageTimes, lastMessages]);
 
   if (isUsersLoading || isGroupsLoading) return <SidebarSkeleton />;
 
@@ -128,7 +157,7 @@ const Sidebar = () => {
           {combinedChats.map((chat) => {
             const unreadCount = unreadCounts[chat.chatId] || 0;
             const hasUnread = unreadCount > 0;
-            const lastMessage = formatLastMessage(chat.chatId, chat.type === 'group');
+            const lastMessage = formatLastMessage(chat.chatId, chat.type === 'group', lastMessages);
             const isSelected = (selectedChat?._id === chat.chatId);
 
             return (
@@ -170,7 +199,10 @@ const Sidebar = () => {
                         ? "text-neutral-300 font-medium"
                         : "text-neutral-400"
                     }`}>
-                      {lastMessage || (chat.type === 'user' && onlineUsers.includes(chat.chatId) ? "Online" : `${chat.members?.length || 0} members`)}
+                      {lastMessage && lastMessage.trim() !== '' ? lastMessage : 
+                        (chat.type === 'user' && onlineUsers.includes(chat.chatId) ? "Online" : 
+                         `${chat.members?.length || 0} members`)
+                      }
                     </div>
                   </div>
                 )}
