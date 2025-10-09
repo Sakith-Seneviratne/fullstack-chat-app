@@ -2,8 +2,6 @@ import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import { Eye, EyeOff, Loader2, Lock, Mail, MessageSquare, User } from "lucide-react";
 import { Link } from "react-router-dom";
-
-import AuthImagePattern from "../components/AuthImagePattern";
 import toast from "react-hot-toast";
 
 const SignUpPage = () => {
@@ -28,43 +26,50 @@ const SignUpPage = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-
     const success = validateForm();
-
     if (success === true) signup(formData);
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
-      {/* left side */}
+    <div className="min-h-screen flex items-center justify-center bg-neutral-950">
+      {/* Left Side - Form */}
       <div className="flex flex-col justify-center items-center p-6 sm:p-12">
         <div className="w-full max-w-md space-y-8">
-          {/* LOGO */}
+          {/* Logo */}
           <div className="text-center mb-8">
-            <div className="flex flex-col items-center gap-2 group">
-              <div
-                className="size-12 rounded-xl bg-primary/10 flex items-center justify-center 
-              group-hover:bg-primary/20 transition-colors"
-              >
-                <MessageSquare className="size-6 text-primary" />
+            <div className="flex flex-col items-center gap-3 group">
+              <div className="w-16 h-16 flex items-center justify-center bg-neutral-800 rounded-2xl group-hover:scale-105 transition-transform border border-neutral-700">
+                <img 
+                  src="/TezzeractLogo.svg" 
+                  alt="Tezzeract Logo" 
+                  className="w-10 h-10"
+                />
               </div>
-              <h1 className="text-2xl font-bold mt-2">Create Account</h1>
-              <p className="text-base-content/60">Get started with your free account</p>
+              <div>
+                <h1 className="text-3xl font-bold text-neutral-100 mt-2">
+                  Create Account
+                </h1>
+                <p className="text-neutral-400 mt-1">
+                  Get started with your free account
+                </p>
+              </div>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-medium">Full Name</span>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Full Name Field */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-300">
+                Full Name
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <User className="size-5 text-base-content/40" />
+                  <User className="h-5 w-5 text-neutral-500" />
                 </div>
                 <input
                   type="text"
-                  className={`input input-bordered w-full pl-10`}
+                  className="w-full pl-10 pr-4 py-3.5 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:bg-neutral-800 focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all hover:border-neutral-600/50"
                   placeholder="John Doe"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
@@ -72,17 +77,18 @@ const SignUpPage = () => {
               </div>
             </div>
 
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-medium">Email</span>
+            {/* Email Field */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-300">
+                Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="size-5 text-base-content/40" />
+                  <Mail className="h-5 w-5 text-neutral-500" />
                 </div>
                 <input
                   type="email"
-                  className={`input input-bordered w-full pl-10`}
+                  className="w-full pl-10 pr-4 py-3.5 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:bg-neutral-800 focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all hover:border-neutral-600/50"
                   placeholder="you@example.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -90,50 +96,64 @@ const SignUpPage = () => {
               </div>
             </div>
 
-            <div className="form-control">
-              <label className="label">
-                <span className="label-text font-medium">Password</span>
+            {/* Password Field */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-neutral-300">
+                Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="size-5 text-base-content/40" />
+                  <Lock className="h-5 w-5 text-neutral-500" />
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
-                  className={`input input-bordered w-full pl-10`}
+                  className="w-full pl-10 pr-12 py-3.5 bg-neutral-800/50 border border-neutral-700/50 rounded-xl text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:bg-neutral-800 focus:border-neutral-600 focus:ring-2 focus:ring-neutral-700/50 transition-all hover:border-neutral-600/50"
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-neutral-300 transition-colors"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff className="size-5 text-base-content/40" />
+                    <EyeOff className="h-5 w-5 text-neutral-500" />
                   ) : (
-                    <Eye className="size-5 text-base-content/40" />
+                    <Eye className="h-5 w-5 text-neutral-500" />
                   )}
                 </button>
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary w-full" disabled={isSigningUp}>
+            {/* Submit Button */}
+            <button 
+              type="submit" 
+              className="w-full py-3.5 px-4 bg-gradient-to-r from-neutral-700 to-neutral-600 hover:from-neutral-600 hover:to-neutral-500 text-neutral-100 font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 border border-neutral-600/30"
+              disabled={isSigningUp}
+            >
               {isSigningUp ? (
                 <>
-                  <Loader2 className="size-5 animate-spin" />
-                  Loading...
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Creating account...</span>
                 </>
               ) : (
-                "Create Account"
+                <>
+                  <MessageSquare className="h-5 w-5" />
+                  <span>Create Account</span>
+                </>
               )}
             </button>
           </form>
-          <div className="text-center">
-            <p className="text-base-content/60">
+
+          {/* Sign In Link */}
+          <div className="text-center pt-4">
+            <p className="text-neutral-400">
               Already have an account?{" "}
-              <Link to="/login" className="link link-primary">
+              <Link 
+                to="/login" 
+                className="text-neutral-200 font-medium hover:text-neutral-100 transition-colors"
+              >
                 Sign in
               </Link>
             </p>
@@ -141,13 +161,9 @@ const SignUpPage = () => {
         </div>
       </div>
 
-      {/* right side */}
-
-      <AuthImagePattern
-        title="Join our community"
-        subtitle="Connect with friends, share moments, and stay in touch with your loved ones."
-      />
+        
     </div>
   );
 };
+
 export default SignUpPage;
