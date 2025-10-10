@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
-import { Image, Send, X, Paperclip, File } from "lucide-react";
+import { Image, Send, X, Paperclip, File, Reply } from "lucide-react";
 import toast from "react-hot-toast";
 
 const MessageInput = ({ selectedChat }) => {
@@ -105,11 +105,12 @@ const MessageInput = ({ selectedChat }) => {
     <div className="border-t border-neutral-800 p-2 md:p-3">
       {/* Reply Preview */}
       {replyingTo && (
-        <div className="mb-2 flex items-start gap-2 p-2 bg-neutral-800/50 rounded-lg border-l-4 border-blue-500">
+        <div className="mb-2 flex items-start gap-1.5 md:gap-2 p-1.5 md:p-2 bg-neutral-800/50 rounded-lg border-l-4 border-blue-500">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold text-blue-400">
-                Replying to {replyingTo.senderId?.fullName || "Unknown"}
+              <Reply className="w-3 h-3 text-blue-400 shrink-0" />
+              <span className="text-xs font-semibold text-blue-400 truncate">
+                {replyingTo.senderId?.fullName || "Unknown"}
               </span>
             </div>
             
@@ -118,14 +119,14 @@ const MessageInput = ({ selectedChat }) => {
               <img
                 src={replyingTo.image}
                 alt="Reply preview"
-                className="max-w-[100px] max-h-[60px] rounded mb-1 object-cover"
+                className="max-w-[80px] md:max-w-[100px] max-h-[50px] md:max-h-[60px] rounded mb-1 object-cover"
               />
             )}
             
             {/* Show file info if replying to file */}
             {replyingTo.file && (
               <div className="flex items-center gap-1 mb-1">
-                <File size={14} className="text-neutral-400" />
+                <File size={12} className="text-neutral-400 md:w-3.5 md:h-3.5 shrink-0" />
                 <span className="text-xs text-neutral-400 truncate">{replyingTo.file.name}</span>
               </div>
             )}
@@ -139,10 +140,10 @@ const MessageInput = ({ selectedChat }) => {
           </div>
           <button
             onClick={clearReplyingTo}
-            className="p-1 rounded-full hover:bg-neutral-700 transition-colors shrink-0"
+            className="p-1 rounded-full hover:bg-neutral-700 active:bg-neutral-700 transition-colors shrink-0"
             type="button"
           >
-            <X className="w-4 h-4 text-neutral-400" />
+            <X className="w-3.5 h-3.5 md:w-4 md:h-4 text-neutral-400" />
           </button>
         </div>
       )}

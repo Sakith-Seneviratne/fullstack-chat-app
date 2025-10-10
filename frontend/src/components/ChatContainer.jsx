@@ -190,20 +190,20 @@ useEffect(() => {
                 <div className={`flex flex-col mt-1 p-2 md:p-3 rounded-lg shadow-md relative ${
                   isOwnMessage ? "bg-neutral-600 text-neutral-100" : "bg-neutral-700 text-neutral-100"
                 }`}>
-                  {/* Reply Button */}
+                  {/* Reply Button - Always visible on mobile, hover on desktop */}
                   <button
                     onClick={() => setReplyingTo(message)}
-                    className="absolute -top-2 right-2 p-1 rounded-md bg-neutral-800 hover:bg-neutral-700 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                    className="absolute -top-2 right-2 p-1 rounded-md bg-neutral-800 hover:bg-neutral-700 md:opacity-0 md:group-hover:opacity-100 transition-opacity shadow-md"
                     title="Reply"
                   >
-                    <Reply className="w-3.5 h-3.5 text-neutral-300" />
+                    <Reply className="w-3 h-3 md:w-3.5 md:h-3.5 text-neutral-300" />
                   </button>
 
                   {/* Replied Message Preview */}
                   {message.replyTo && (
                     <div
                       onClick={() => scrollToMessage(message.replyTo._id)}
-                      className="mb-2 p-2 bg-neutral-900/30 rounded border-l-4 border-blue-500 cursor-pointer hover:bg-neutral-900/50 transition-colors"
+                      className="mb-2 p-1.5 md:p-2 bg-neutral-900/30 rounded border-l-4 border-blue-500 cursor-pointer hover:bg-neutral-900/50 transition-colors active:bg-neutral-900/50"
                     >
                       <div className="text-xs font-semibold text-blue-400 mb-1">
                         {message.replyTo.senderId?.fullName || "Unknown"}
@@ -214,21 +214,21 @@ useEffect(() => {
                         <img
                           src={message.replyTo.image}
                           alt="Replied message"
-                          className="max-w-[150px] max-h-[100px] rounded mb-1 object-cover"
+                          className="max-w-[120px] md:max-w-[150px] max-h-[80px] md:max-h-[100px] rounded mb-1 object-cover"
                         />
                       )}
                       
                       {/* Show file if original was a file */}
                       {message.replyTo.file && (
-                        <div className="flex items-center gap-2 mb-1">
-                          <File size={16} className="text-neutral-400" />
-                          <span className="text-xs text-neutral-300">{message.replyTo.file.name}</span>
+                        <div className="flex items-center gap-1.5 md:gap-2 mb-1">
+                          <File size={14} className="text-neutral-400 md:w-4 md:h-4" />
+                          <span className="text-xs text-neutral-300 truncate">{message.replyTo.file.name}</span>
                         </div>
                       )}
                       
                       {/* Show text with line clamp */}
                       {message.replyTo.text && (
-                        <div className="text-xs text-neutral-300 line-clamp-3">
+                        <div className="text-xs text-neutral-300 line-clamp-2 md:line-clamp-3">
                           {message.replyTo.text}
                         </div>
                       )}
