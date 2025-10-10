@@ -14,6 +14,7 @@ export const useChatStore = create((set, get) => ({
   unreadCounts: {}, // { chatId: count }
   lastMessageTimes: {}, // { chatId: timestamp }
   lastMessages: {}, // { chatId: { text, image, senderId } }
+  replyingTo: null, // Message being replied to
 
   getUsers: async () => {
     set({ isUsersLoading: true });
@@ -386,11 +387,15 @@ export const useChatStore = create((set, get) => ({
   },
 
   sendChatMessage: async (chatId, isGroup, messageData) => {
-    const { messages } = get();
+    const { messages, replyingTo } = get();
     try {
       const endpoint = isGroup ? `/groups/${chatId}/send` : `/messages/send/${chatId}`;
-      const res = await axiosInstance.post(endpoint, messageData);
-      set({ messages: [...messages, res.data] });
+      const dataToSend = {
+        ...messageData,
+        replyTo: replyingTo?._id || null,
+      };
+      const res = await axiosInstance.post(endpoint, dataToSend);
+      set({ messages: [...messages, res.data], replyingTo: null });
       
       // Update both last message time and last message content
       get().setLastMessageTime(chatId, Date.now());
@@ -398,6 +403,14 @@ export const useChatStore = create((set, get) => ({
     } catch (error) {
       toast.error(error.response.data.message);
     }
+  },
+
+  setReplyingTo: (message) => {
+    set({ replyingTo: message });
+  },
+
+  clearReplyingTo: () => {
+    set({ replyingTo: null });
   },
 
   subscribeToChatMessages: () => {

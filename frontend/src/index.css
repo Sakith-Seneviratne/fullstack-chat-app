@@ -44,3 +44,17 @@ html {
     animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
+
+/* Highlight message animation */
+@keyframes highlight {
+  0%, 100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(59, 130, 246, 0.2);
+  }
+}
+
+.highlight-message {
+  animation: highlight 2s ease-in-out;
+}

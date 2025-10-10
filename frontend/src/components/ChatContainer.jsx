@@ -6,7 +6,7 @@ import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
 import { useAuthStore } from "../store/useAuthStore";
 import { formatMessageTime } from "../lib/utils";
-import { Check, CheckCheck, File, Download } from "lucide-react";
+import { Check, CheckCheck, File, Download, Reply } from "lucide-react";
 
 const ChatContainer = () => {
   const {
@@ -17,10 +17,12 @@ const ChatContainer = () => {
     subscribeToChatMessages,
     unsubscribeFromChatMessages,
     markMessagesAsRead,
+    setReplyingTo,
   } = useChatStore();
   const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const messageRefs = useRef({});
 
   useEffect(() => {
     if (selectedChat) {
@@ -116,6 +118,18 @@ useEffect(() => {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + " " + sizes[i];
   };
 
+  // Scroll to replied message
+  const scrollToMessage = (messageId) => {
+    const messageElement = messageRefs.current[messageId];
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      messageElement.classList.add("highlight-message");
+      setTimeout(() => {
+        messageElement.classList.remove("highlight-message");
+      }, 2000);
+    }
+  };
+
   if (isMessagesLoading) {
     return (
       <div className="flex-1 flex flex-col overflow-auto">
@@ -145,8 +159,11 @@ useEffect(() => {
           return (
             <div
               key={message._id || index}
-              className={`flex items-start gap-2 md:gap-3 ${isOwnMessage ? "justify-end" : "justify-start"}`}
-              {...(index === messages.length - 1 && { ref: messageEndRef })}
+              ref={(el) => {
+                if (message._id) messageRefs.current[message._id] = el;
+                if (index === messages.length - 1) messageEndRef.current = el;
+              }}
+              className={`flex items-start gap-2 md:gap-3 ${isOwnMessage ? "justify-end" : "justify-start"} group`}
             >
               {!isOwnMessage && (
                 <div className="shrink-0">
@@ -170,9 +187,59 @@ useEffect(() => {
                   </time>
                 </div>
                 
-                <div className={`flex flex-col mt-1 p-2 md:p-3 rounded-lg shadow-md ${
+                <div className={`flex flex-col mt-1 p-2 md:p-3 rounded-lg shadow-md relative ${
                   isOwnMessage ? "bg-neutral-600 text-neutral-100" : "bg-neutral-700 text-neutral-100"
                 }`}>
+                  {/* Reply Button */}
+                  <button
+                    onClick={() => setReplyingTo(message)}
+                    className="absolute -top-2 right-2 p-1 rounded-md bg-neutral-800 hover:bg-neutral-700 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                    title="Reply"
+                  >
+                    <Reply className="w-3.5 h-3.5 text-neutral-300" />
+                  </button>
+
+                  {/* Replied Message Preview */}
+                  {message.replyTo && (
+                    <div
+                      onClick={() => scrollToMessage(message.replyTo._id)}
+                      className="mb-2 p-2 bg-neutral-900/30 rounded border-l-4 border-blue-500 cursor-pointer hover:bg-neutral-900/50 transition-colors"
+                    >
+                      <div className="text-xs font-semibold text-blue-400 mb-1">
+                        {message.replyTo.senderId?.fullName || "Unknown"}
+                      </div>
+                      
+                      {/* Show image if original was an image */}
+                      {message.replyTo.image && (
+                        <img
+                          src={message.replyTo.image}
+                          alt="Replied message"
+                          className="max-w-[150px] max-h-[100px] rounded mb-1 object-cover"
+                        />
+                      )}
+                      
+                      {/* Show file if original was a file */}
+                      {message.replyTo.file && (
+                        <div className="flex items-center gap-2 mb-1">
+                          <File size={16} className="text-neutral-400" />
+                          <span className="text-xs text-neutral-300">{message.replyTo.file.name}</span>
+                        </div>
+                      )}
+                      
+                      {/* Show text with line clamp */}
+                      {message.replyTo.text && (
+                        <div className="text-xs text-neutral-300 line-clamp-3">
+                          {message.replyTo.text}
+                        </div>
+                      )}
+                      
+                      {/* Fallback if nothing */}
+                      {!message.replyTo.text && !message.replyTo.image && !message.replyTo.file && (
+                        <div className="text-xs text-neutral-400 italic">Message</div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Image Attachment */}
                   {message.image && (
                     <img

@@ -120,6 +120,10 @@ export const getGroupMessages = async (req, res) => {
 
     const messages = await Message.find({ groupId })
       .populate("senderId", "-password")
+      .populate({
+        path: "replyTo",
+        populate: { path: "senderId", select: "fullName profilePic" }
+      })
       .sort({ createdAt: 1 });
 
     res.status(200).json(messages);
@@ -131,7 +135,7 @@ export const getGroupMessages = async (req, res) => {
 
 export const sendGroupMessage = async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, replyTo } = req.body;
     const { id: groupId } = req.params;
     const senderId = req.user._id;
 
@@ -179,14 +183,17 @@ export const sendGroupMessage = async (req, res) => {
       text,
       image: imageUrl,
       file: fileData,
+      replyTo: replyTo || null,
     });
 
     await newMessage.save();
 
-    const populatedMessage = await Message.findById(newMessage._id).populate(
-      "senderId",
-      "-password"
-    );
+    const populatedMessage = await Message.findById(newMessage._id)
+      .populate("senderId", "-password")
+      .populate({
+        path: "replyTo",
+        populate: { path: "senderId", select: "fullName profilePic" }
+      });
 
     // Emit to all group members via group room
     io.to(`group_${groupId}`).emit("newGroupMessage", {

@@ -71,7 +71,12 @@ export const getMessages = async (req, res) => {
         { senderId: myId, receiverId: userToChatId },
         { senderId: userToChatId, receiverId: myId },
       ],
-    }).populate("senderId", "fullName profilePic");
+    })
+    .populate("senderId", "fullName profilePic")
+    .populate({
+      path: "replyTo",
+      populate: { path: "senderId", select: "fullName profilePic" }
+    });
 
     res.status(200).json(messages);
   } catch (error) {
@@ -82,7 +87,7 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, replyTo } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
@@ -120,12 +125,19 @@ export const sendMessage = async (req, res) => {
       text,
       image: imageUrl,
       file: fileData,
+      replyTo: replyTo || null,
     });
 
     await newMessage.save();
 
-    // Populate sender info before sending via socket
+    // Populate sender info and replied message before sending via socket
     await newMessage.populate("senderId", "fullName profilePic");
+    if (newMessage.replyTo) {
+      await newMessage.populate({
+        path: "replyTo",
+        populate: { path: "senderId", select: "fullName profilePic" }
+      });
+    }
 
     const receiverSocketId = getReceiverSocketId(receiverId);
     if (receiverSocketId) {

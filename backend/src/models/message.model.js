@@ -31,6 +31,11 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: null,
     },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message',
+      default: null,
+    },
     readBy: [{
       user: {
         type: mongoose.Schema.Types.ObjectId,
