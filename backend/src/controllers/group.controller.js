@@ -76,7 +76,27 @@ export const getUserGroups = async (req, res) => {
       .populate("members", "-password")
       .sort({ updatedAt: -1 });
 
-    res.status(200).json(groups);
+    // Get last message for each group
+    const groupsWithLastMessage = await Promise.all(
+      groups.map(async (group) => {
+        const lastMessage = await Message.findOne({ groupId: group._id })
+          .sort({ createdAt: -1 })
+          .populate("senderId", "fullName profilePic")
+          .lean();
+
+        return {
+          ...group.toObject(),
+          lastMessage: lastMessage ? {
+            text: lastMessage.text,
+            image: lastMessage.image,
+            senderId: lastMessage.senderId,
+            createdAt: lastMessage.createdAt,
+          } : null,
+        };
+      })
+    );
+
+    res.status(200).json(groupsWithLastMessage);
   } catch (error) {
     console.log("Error in getUserGroups controller:", error.message);
     res.status(500).json({ message: "Internal server error" });

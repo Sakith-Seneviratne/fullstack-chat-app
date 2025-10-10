@@ -102,10 +102,10 @@ const MessageInput = ({ selectedChat }) => {
   };
 
   return (
-    <div className="border-t border-neutral-800 p-4">
+    <div className="border-t border-neutral-800 p-2 md:p-3">
       {/* Image Preview */}
       {imagePreview && (
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-2 md:mb-3 flex items-center gap-2">
           <div className="relative">
             <img
               src={imagePreview}
@@ -125,7 +125,7 @@ const MessageInput = ({ selectedChat }) => {
 
       {/* File Preview */}
       {filePreview && (
-        <div className="mb-3 flex items-center gap-3 p-3 bg-neutral-800 rounded-lg border border-neutral-600">
+        <div className="mb-2 md:mb-3 flex items-center gap-2 md:gap-3 p-2 md:p-3 bg-neutral-800 rounded-lg border border-neutral-600">
           <div className="p-2 bg-neutral-700 rounded-lg">
             <File size={24} className="text-neutral-400" />
           </div>
@@ -147,11 +147,11 @@ const MessageInput = ({ selectedChat }) => {
         </div>
       )}
 
-      <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-        <div className="flex-1 flex gap-2">
+      <form onSubmit={handleSendMessage} className="flex items-center gap-1 md:gap-2">
+        <div className="flex-1 flex gap-1 md:gap-2">
           <input
             type="text"
-            className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-600 bg-neutral-900 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-600 focus:border-transparent text-sm transition-all"
+            className="flex-1 px-3 md:px-4 py-2 md:py-2.5 rounded-lg border border-neutral-600 bg-neutral-900 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-neutral-600 focus:border-transparent text-sm transition-all"
             placeholder="Type a message..."
             value={text}
             onChange={(e) => setText(e.target.value)}

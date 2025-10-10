@@ -21,6 +21,26 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.get("/messages/users");
       set({ users: res.data });
       
+      // Populate lastMessages and lastMessageTimes from the response
+      const newLastMessages = {};
+      const newLastMessageTimes = {};
+      
+      res.data.forEach(user => {
+        if (user.lastMessage) {
+          newLastMessages[user._id] = {
+            text: user.lastMessage.text,
+            image: user.lastMessage.image,
+            senderId: user.lastMessage.senderId,
+          };
+          newLastMessageTimes[user._id] = new Date(user.lastMessage.createdAt).getTime();
+        }
+      });
+      
+      set(state => ({
+        lastMessages: { ...state.lastMessages, ...newLastMessages },
+        lastMessageTimes: { ...state.lastMessageTimes, ...newLastMessageTimes },
+      }));
+      
       // Fetch unread counts for all users
       const authUserId = useAuthStore.getState().authUser._id;
       const unreadPromises = res.data.map(user => 
@@ -39,6 +59,26 @@ export const useChatStore = create((set, get) => ({
     try {
       const res = await axiosInstance.get("/groups");
       set({ groups: res.data });
+      
+      // Populate lastMessages and lastMessageTimes from the response
+      const newLastMessages = {};
+      const newLastMessageTimes = {};
+      
+      res.data.forEach(group => {
+        if (group.lastMessage) {
+          newLastMessages[group._id] = {
+            text: group.lastMessage.text,
+            image: group.lastMessage.image,
+            senderId: group.lastMessage.senderId,
+          };
+          newLastMessageTimes[group._id] = new Date(group.lastMessage.createdAt).getTime();
+        }
+      });
+      
+      set(state => ({
+        lastMessages: { ...state.lastMessages, ...newLastMessages },
+        lastMessageTimes: { ...state.lastMessageTimes, ...newLastMessageTimes },
+      }));
       
       // Fetch unread counts for all groups
       const unreadPromises = res.data.map(group => 
@@ -352,7 +392,9 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.post(endpoint, messageData);
       set({ messages: [...messages, res.data] });
       
+      // Update both last message time and last message content
       get().setLastMessageTime(chatId, Date.now());
+      get().setLastMessage(chatId, res.data, isGroup);
     } catch (error) {
       toast.error(error.response.data.message);
     }
@@ -375,15 +417,18 @@ export const useChatStore = create((set, get) => ({
 
       // Determine if it's a group chat based on selectedChat or message content
       const isGroup = selectedChat?.type === 'group' || !!actualMessage.groupId;
+      const senderId = actualMessage.senderId?._id || actualMessage.senderId;
+      const chatId = selectedChat?._id; // Use selectedChat's ID for current view
 
       // Determine the correct chatId to associate the message with
       let targetChatId;
       if (isGroup) {
         targetChatId = selectedChat?._id || actualMessage.groupId;
       } else {
-        targetChatId = selectedChat?._id === actualMessage.senderId?._id
-          ? selectedChat._id
-          : actualMessage.senderId?._id;
+        // For 1-on-1 chats, the targetChatId is always the other person's ID
+        // If I sent the message, use the receiverId (the selected chat)
+        // If I received the message, use the senderId
+        targetChatId = senderId === authUserId ? selectedChat?._id : senderId;
       }
 
       if (!targetChatId) {
@@ -391,17 +436,17 @@ export const useChatStore = create((set, get) => ({
         return;
       }
 
-      const senderId = actualMessage.senderId?._id || actualMessage.senderId;
-      const chatId = selectedChat?._id; // Use selectedChat's ID for current view
-
       const populatedNewMessage = actualMessage;
 
       // Update last message and time for the relevant chat in the sidebar
       get().setLastMessage(targetChatId, populatedNewMessage, isGroup);
       get().setLastMessageTime(targetChatId, Date.now());
 
-      // Handle unread counts if the message is for a different chat or group
-      if ((isGroup && targetChatId !== chatId) || (!isGroup && senderId !== chatId)) {
+      // Handle unread counts if the message is for a different chat and not sent by me
+      const isMessageForDifferentChat = (isGroup && targetChatId !== chatId) || (!isGroup && targetChatId !== chatId);
+      const isMessageFromOther = senderId !== authUserId;
+      
+      if (isMessageForDifferentChat && isMessageFromOther) {
         get().incrementUnreadCount(targetChatId);
         return;
       }

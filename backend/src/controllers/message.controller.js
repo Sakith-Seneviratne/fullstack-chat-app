@@ -29,7 +29,32 @@ export const getUsersForSidebar = async (req, res) => {
     const loggedInUserId = req.user._id;
     const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
 
-    res.status(200).json(filteredUsers);
+    // Get last message for each user
+    const usersWithLastMessage = await Promise.all(
+      filteredUsers.map(async (user) => {
+        const lastMessage = await Message.findOne({
+          $or: [
+            { senderId: loggedInUserId, receiverId: user._id },
+            { senderId: user._id, receiverId: loggedInUserId },
+          ],
+        })
+          .sort({ createdAt: -1 })
+          .populate("senderId", "fullName profilePic")
+          .lean();
+
+        return {
+          ...user.toObject(),
+          lastMessage: lastMessage ? {
+            text: lastMessage.text,
+            image: lastMessage.image,
+            senderId: lastMessage.senderId,
+            createdAt: lastMessage.createdAt,
+          } : null,
+        };
+      })
+    );
+
+    res.status(200).json(usersWithLastMessage);
   } catch (error) {
     console.error("Error in getUsersForSidebar: ", error.message);
     res.status(500).json({ error: "Internal server error" });

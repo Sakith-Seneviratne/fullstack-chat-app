@@ -134,7 +134,7 @@ useEffect(() => {
 
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
+        className="flex-1 overflow-y-auto p-2 md:p-4 space-y-3 md:space-y-4"
       >
         {Array.isArray(messages) && messages.map((message, index) => {
           const senderId = message.senderId?.['_id'] || message.senderId;
@@ -145,7 +145,7 @@ useEffect(() => {
           return (
             <div
               key={message._id || index}
-              className={`flex items-start gap-3 ${isOwnMessage ? "justify-end" : "justify-start"}`}
+              className={`flex items-start gap-2 md:gap-3 ${isOwnMessage ? "justify-end" : "justify-start"}`}
               {...(index === messages.length - 1 && { ref: messageEndRef })}
             >
               {!isOwnMessage && (
@@ -153,12 +153,12 @@ useEffect(() => {
                   <img
                     src={isGroup ? message.senderId?.profilePic || "/avatar.png" : selectedChat.profilePic || "/avatar.png"}
                     alt="profile pic"
-                    className="w-10 h-10 rounded-full object-cover border border-neutral-700"
+                    className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover border border-neutral-700"
                   />
                 </div>
               )}
 
-              <div className={`flex flex-col max-w-xs sm:max-w-md ${isOwnMessage ? "items-end" : "items-start"}`}>
+              <div className={`flex flex-col max-w-[75%] sm:max-w-xs md:max-w-md ${isOwnMessage ? "items-end" : "items-start"}`}>
                 <div className={`flex items-center gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
                   {isGroup && !isOwnMessage && (
                     <span className="text-sm font-medium text-neutral-200">
@@ -170,7 +170,7 @@ useEffect(() => {
                   </time>
                 </div>
                 
-                <div className={`flex flex-col mt-1 p-3 rounded-lg shadow-md ${
+                <div className={`flex flex-col mt-1 p-2 md:p-3 rounded-lg shadow-md ${
                   isOwnMessage ? "bg-neutral-600 text-neutral-100" : "bg-neutral-700 text-neutral-100"
                 }`}>
                   {/* Image Attachment */}
@@ -231,7 +231,7 @@ useEffect(() => {
                   <img
                     src={authUser.profilePic || "/avatar.png"}
                     alt="profile pic"
-                    className="w-10 h-10 rounded-full object-cover border border-neutral-700"
+                    className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover border border-neutral-700"
                   />
                 </div>
               )}
