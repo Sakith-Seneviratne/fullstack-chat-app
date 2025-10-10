@@ -22,7 +22,7 @@ const Navbar = () => {
                 />
               </div>
               <h1 className="text-base md:text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                Tez Chat
+                Tezzeract Talk
               </h1>
             </Link>
           </div>
