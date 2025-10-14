@@ -13,7 +13,7 @@ export default defineConfig({
         name: 'Tezzeract Chat',
         short_name: 'Chat',
         description: 'A real-time chat application built with React and Socket.io',
-        theme_color: '#0f172a',
+        theme_color: '#1e293b',
         background_color: '#0f172a',
         display: 'standalone',
         orientation: 'portrait',
